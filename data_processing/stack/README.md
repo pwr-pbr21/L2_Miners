@@ -1,6 +1,12 @@
 # Preparing data 
 
-## Selecting data from StackOverflow
+# StackOverflow
+Usage:
+```
+python stack.py <data_in> <data_out>
+```
+
+### Selecting data from StackOverflow
 https://data.stackexchange.com/stackoverflow/
 ```
 select *
@@ -9,7 +15,7 @@ where WebsiteUrl like '%github%'
 ```
 The query returned 30990 rows.
 
-## Processing data for collecting GitHub usernames
+### Processing data for collecting GitHub usernames
 - Removing rows with empty AboutMe section  
     18514 rows remained.
 - Applying regexes to retrieve GitHub usernames.
@@ -20,8 +26,8 @@ The query returned 30990 rows.
     ```
     17970 rows remained.
 
-## Processing data for determining technical roles
-- Extracting list of roles via regular expressions
+### Processing data for determining technical roles
+- Extracting list of roles from AboutMe section via regular expressions
     ```
     {
         'name': 'Frontend',

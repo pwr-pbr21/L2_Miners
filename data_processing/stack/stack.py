@@ -1,5 +1,6 @@
 import pandas as pd
 import re
+import sys
 
 gh_username_patterns = [
     r'https?:\/\/([^\/]+)\.github\.io.*',
@@ -30,8 +31,6 @@ role_patterns = [
     },
 ]
 
-# re.match({"name": "DevOps", "pattern": r"\bdev.{0,1}ops\b"}["pattern"], "i am a devops someone", flags=re.IGNORECASE)
-
 
 def extract_user_name(patterns, url):
     for p in patterns:
@@ -50,14 +49,22 @@ def extract_roles(roles, description):
     return detected_roles
 
 
-stack_data = pd.read_csv('./stack/data/QueryResults.csv')
-stack_data = stack_data[~stack_data.AboutMe.isnull()]
+def main(argv):
+    stack_data = pd.read_csv(argv[0])
+    stack_data = stack_data[~stack_data.AboutMe.isnull()]
 
-stack_data['GithubUrl'] = stack_data.apply(
-    lambda row: extract_user_name(gh_username_patterns, row['WebsiteUrl']),
-    axis=1)
-stack_data = stack_data[~stack_data.GithubUrl.isnull()]
+    stack_data['GithubUrl'] = stack_data.apply(
+        lambda row: extract_user_name(gh_username_patterns, row['WebsiteUrl']),
+        axis=1)
+    stack_data = stack_data[~stack_data.GithubUrl.isnull()]
 
-stack_data['Role'] = stack_data.apply(
-    lambda row: extract_roles(role_patterns, row['AboutMe']), axis=1)
-stack_data = stack_data[stack_data['Role'].apply(lambda x: len(x)) > 0]
+    stack_data['Role'] = stack_data.apply(
+        lambda row: extract_roles(role_patterns, row['AboutMe']), axis=1)
+    stack_data = stack_data[stack_data['Role'].apply(lambda x: len(x)) > 0]
+
+    stack_data.to_csv(argv[1], columns=['Id', 'GithubUrl', 'Role'], index=False)
+
+
+if __name__ == "__main__":
+    assert len(sys.argv) == 3
+    main(sys.argv[1:])
