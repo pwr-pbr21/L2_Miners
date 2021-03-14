@@ -3,9 +3,10 @@ import re
 import sys
 
 gh_username_patterns = [
-    r'https?:\/\/([^\/]+)\.github\.io.*',
-    r'https?:\/\/github.com\/([^\/]+)',
-    r'https?:\/\/www.github.com\/([^\/]+)',
+    r'https?:\/\/www\.([^\/\.]+)\.github\.io.*',
+    r'https?:\/\/([^\/\.]+)\.github\.io.*',
+    r'https?:\/\/github\.com\/([^\/\.]+)',
+    r'https?:\/\/www\.github\.com\/([^\/\.]+)',
 ]
 
 role_patterns = [

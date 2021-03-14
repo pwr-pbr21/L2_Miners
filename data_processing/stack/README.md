@@ -20,9 +20,10 @@ The query returned 30990 rows.
     18514 rows remained.
 - Applying regexes to retrieve GitHub usernames.
     ```
-    https?:\/\/([^\/]+)\.github\.io.*
-    https?:\/\/github.com\/([^\/]+)
-    https?:\/\/www.github.com\/([^\/]+)
+    https?:\/\/www\.([^\/\.]+)\.github\.io.*
+    https?:\/\/([^\/\.]+)\.github\.io.*
+    https?:\/\/github\.com\/([^\/\.]+)
+    https?:\/\/www\.github\.com\/([^\/\.]+)
     ```
     17970 rows remained.
 
