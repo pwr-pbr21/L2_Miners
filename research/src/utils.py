@@ -196,21 +196,21 @@ def classify_report(scores, columns):
         columns = ["{}_0".format(columns), "{}_1".format(columns)]
 
     print("{: <15}{: <10}{: <10}{: <10}{}".format(
-        "Role", "Precision", "Recall", "F1", "Support"))
+        "Role", "Precision", "Recall", "F1", "Support"), flush=True)
     for role in columns:
         p = scores["precision_{}".format(role)]
         r = scores["recall_{}".format(role)]
         f1 = scores["f1_{}".format(role)]
         s = scores["support_{}".format(role)]
         print("{: <15}{:.2f}{:10.2f}{:10.2f}{:10}"
-              .format(role, p, r, f1, s))
+              .format(role, p, r, f1, s), flush=True)
 
     p, r, f1 = scores["precision"], scores["recall"], scores["f1"]
-    print("\n{: <15}{:.2f}{:10.2f}{:10.2f}".format("Total:", p, r, f1))
+    print("\n{: <15}{:.2f}{:10.2f}{:10.2f}".format("Total:", p, r, f1), flush=True)
 
-    print("AUC:           {:.2f}".format(scores["auc"]))
-    print("Jaccard:       {:.2f}".format(scores["jaccard"]))
-    print("Hamming Loss:  {:.2f}".format(scores["hamming_loss"]))
+    print("AUC:           {:.2f}".format(scores["auc"]), flush=True)
+    print("Jaccard:       {:.2f}".format(scores["jaccard"]), flush=True)
+    print("Hamming Loss:  {:.2f}".format(scores["hamming_loss"]), flush=True)
 
 
 def top_10_features(df):

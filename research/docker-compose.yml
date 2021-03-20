@@ -2,14 +2,16 @@ version: "3"
 
 services:
     python:
-        build: .
+        build: ./src
         working_dir: /root/technical-roles-script
         volumes:
-            - ./:/root/technical-roles-script
-            - data:/data
-        command: /bin/sh -c "while sleep 1000; do :; done"
-
-volumes: 
-    data:
-        external:
-            name: technical-roles_data
+            - ./src:/root/technical-roles-script
+            - ./inputData:/inputData
+            - ./outputData:/outputData
+            
+        ports:
+            - "8888:8888"
+        #command:  /bin/sh -c "./simultaneously.sh"
+        command:  /bin/sh -c "./start.sh 1"
+        #command: python -W ignore start.py 3
+        #command: /bin/sh -c "while sleep 1000; do :; done"
