@@ -1,3 +1,5 @@
-*
-!.gitignore
-!scraper.py
+.idea
+venv
+auth.key
+input.csv
+output.json
