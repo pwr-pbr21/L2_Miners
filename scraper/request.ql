@@ -2,6 +2,9 @@ query ($login: String!) {
   user(login: $login) {
     id
     bio
+    repositories {
+      totalCount
+    }
   }
 }
 

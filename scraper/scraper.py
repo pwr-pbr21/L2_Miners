@@ -37,7 +37,7 @@ SAVE_STEP = 10
 REPOS_PER_PAGE = 100
 MAX_ATTEMPTS_NUMBER = 3
 
-USER_GRAPHQL_QUERY = 'query ($login: String!) { user(login: $login) { id bio }}'
+USER_GRAPHQL_QUERY = 'query ($login: String!) { user(login: $login) { id bio repositories { totalCount } } }'
 REPOSITORY_GRAPHQL_QUERY = 'query ($login: String!, $userId: ID!, $repoCursor: String) {user(login: $login) {repositories(first: ' + str(
     REPOS_PER_PAGE) + ', after: $repoCursor) {edges {cursor node {name description dependencyGraphManifests {nodes {dependencies {nodes {packageName}}}} languages(first: 100, orderBy: {field: SIZE, direction: DESC}) {nodes {name}} topics: repositoryTopics(first: 100) {nodes {topic {name}}} defaultBranchRef {target {...on Commit {totalCommits: history {totalCount} userCommits: history(author: {id: $userId}) {totalCount}}}}}}}} }'
 
@@ -67,7 +67,7 @@ def make_request(query: str, variables: Dict[str, str] = {}):
     global REQUEST_COUNTER
     status_code = 0
     repeats = 0
-    while status_code != 200:
+    while status_code != 200 and repeats < MAX_ATTEMPTS_NUMBER:
         repeats = repeats + 1
         REQUEST_COUNTER = REQUEST_COUNTER + 1
         print(f'REQUEST VARIABLES {variables}')
@@ -84,8 +84,6 @@ def make_request(query: str, variables: Dict[str, str] = {}):
         print(response.json())
         print(response.request.body)
         print(f'Occurred unexpected status code: {response.status_code}')
-        if repeats >= MAX_ATTEMPTS_NUMBER:
-            exit(1)
     return response.json().get('data')
 
 
@@ -131,12 +129,11 @@ def fetch_repos(username: str, user_id: str):
 def fetch_user(username: str):
     variables = {"login": username}
     data = make_request(USER_GRAPHQL_QUERY, variables)
-    user = data.get('user')
-    return {
-        OUTPUT_ATTRIBUTE_NAME['user_name']: username,
-        OUTPUT_ATTRIBUTE_NAME['user_bio']: user.get('bio'),
-        OUTPUT_ATTRIBUTE_NAME['user_id']: user.get('id')
-    }
+    return data.get('user')
+
+
+def validate_user(user: Dict):
+    return user and int(user.get('repositories').get('totalCount')) >= 5
 
 
 def fetch_data_for(usernames: pd.Series):
@@ -145,10 +142,16 @@ def fetch_data_for(usernames: pd.Series):
     for idx, username in usernames.items():
         print(f'Progress {idx} of {size}, Total requests: {REQUEST_COUNTER}')
         user = fetch_user(username)
-        user_id = user[OUTPUT_ATTRIBUTE_NAME['user_id']]
+        if not validate_user(user):
+            continue
+        user_id = user.get('id')
         repos = fetch_repos(username, user_id)
-        user[OUTPUT_ATTRIBUTE_NAME['repos']] = repos
-        collection[username] = user
+        collection[username] = {
+            OUTPUT_ATTRIBUTE_NAME['user_name']: username,
+            OUTPUT_ATTRIBUTE_NAME['user_bio']: user.get('bio'),
+            OUTPUT_ATTRIBUTE_NAME['user_id']: user_id,
+            OUTPUT_ATTRIBUTE_NAME['repos']: repos
+        }
         if idx % SAVE_STEP == 0:
             update_data(collection)
             collection = {}
@@ -161,7 +164,6 @@ already_saved = load_data()
 input_usernames = pd.read_csv(INPUT_FILENAME, delimiter=',')[USERNAME_COLUMN_NAME]
 
 distinct_usernames = input_usernames.drop_duplicates()
-distinct_usernames.isin(already_saved.keys())
 waiting_usernames = distinct_usernames[~distinct_usernames.isin(already_saved.keys())]
 
 fetch_data_for(waiting_usernames)
