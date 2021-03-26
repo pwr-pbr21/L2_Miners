@@ -5,12 +5,15 @@ from typing import Dict
 import pandas as pd
 import requests as rq
 
-INPUT_FILENAME = 'input.csv'
+INPUT_FILENAME = '../stack/QueryResultsOut.csv'
 OUTPUT_FILENAME = 'output.json'
 AUTHORIZATION_KEY_FILE = 'auth.key'
 
-USERNAME_COLUMN_NAME = 'GithubUsername'
+USERNAME_COLUMN_NAME = 'GithubUrl'
 OUTPUT_ATTRIBUTE_NAME = {
+    'users': 'users',
+    'not_found': 'not_found_username',
+    'not_enough_repos': 'not_enough_repos',
     'user_name': 'username',
     'user_id': 'id',
     'user_bio': 'bio',
@@ -19,9 +22,9 @@ OUTPUT_ATTRIBUTE_NAME = {
     'commits_authored': 'commits_authored',
     'repo_name': 'name',
     'repo_topics': 'topics',
-    'repo_commits': "commits",
-    'repo_languages': 'languages',
+    'repo_main_language': 'mainLanguage',
     'repo_description': "description",
+    'repo_deps': "dependencies",
 }
 
 with open(AUTHORIZATION_KEY_FILE) as AUTH_FILE:
@@ -33,23 +36,30 @@ GITHUB_GRAPHQL_HEADERS = {
     'Authorization': f'token {AUTH_TOKEN}'
 }
 
-SAVE_STEP = 10
-REPOS_PER_PAGE = 100
+SAVE_STEP = 3
 MAX_ATTEMPTS_NUMBER = 3
 
-USER_GRAPHQL_QUERY = 'query ($login: String!) { user(login: $login) { id bio repositories { totalCount } } }'
-REPOSITORY_GRAPHQL_QUERY = 'query ($login: String!, $userId: ID!, $repoCursor: String) {user(login: $login) {repositories(first: ' + str(
-    REPOS_PER_PAGE) + ', after: $repoCursor) {edges {cursor node {name description dependencyGraphManifests {nodes {dependencies {nodes {packageName}}}} languages(first: 100, orderBy: {field: SIZE, direction: DESC}) {nodes {name}} topics: repositoryTopics(first: 100) {nodes {topic {name}}} defaultBranchRef {target {...on Commit {totalCommits: history {totalCount} userCommits: history(author: {id: $userId}) {totalCount}}}}}}}} }'
+REPOS_PER_PAGE = 100
+MAX_REPOS_REQUEST_ATTEMPTS = 5
+
+USER_GRAPHQL_QUERY = 'query ($login: String!) { user(login: $login) { id bio } }'
+REPOSITORY_GRAPHQL_QUERY = 'query ($login: String!, $userId: ID!, $limit: Int!, $repoCursor: String) {user(login: $login) {repositories(first: $limit, after: $repoCursor) {edges {cursor node {name isFork description dependencyGraphManifests {nodes {dependencies {nodes {packageName}}}} languages(first: 1, orderBy: {field: SIZE, direction: DESC}) {nodes {name}} topics: repositoryTopics(first: 100) {nodes {topic {name}}} defaultBranchRef {target {...on Commit {totalCommits: history {totalCount} userCommits: history(author: {id: $userId}) {totalCount}}}}}}}} }'
 
 REQUEST_COUNTER = 0
+NOT_EXISTING_USERNAMES = 0
+USERS_WITHOUT_ENOUGH_REPOS = 0
 
 
 def load_data():
     if os.path.isfile(OUTPUT_FILENAME):
         with open(OUTPUT_FILENAME, "r") as outfile:
-            return json.load(outfile)
+            data = json.load(outfile)
+            users: dict = data[OUTPUT_ATTRIBUTE_NAME['users']]
+            not_found: list = data[OUTPUT_ATTRIBUTE_NAME['not_found']]
+            repos: list = data[OUTPUT_ATTRIBUTE_NAME['not_enough_repos']]
+            return users, not_found, repos
     else:
-        return {}
+        return {}, [], []
 
 
 def save_data(data):
@@ -57,49 +67,77 @@ def save_data(data):
         json.dump(data, outfile, indent=2)
 
 
-def update_data(additional_data):
-    loaded = load_data()
-    merged = {**loaded, **additional_data}
-    save_data(merged)
+def update_data(users: dict, not_found: list, lack_of_repos: list):
+    l_users, l_not_found, l_repos = load_data()
+    save_data({
+        OUTPUT_ATTRIBUTE_NAME['users']: {**users, **l_users},
+        OUTPUT_ATTRIBUTE_NAME['not_found']: not_found + l_not_found,
+        OUTPUT_ATTRIBUTE_NAME['not_enough_repos']: lack_of_repos + l_repos
+    })
 
 
 def make_request(query: str, variables: Dict[str, str] = {}):
     global REQUEST_COUNTER
-    status_code = 0
-    repeats = 0
-    while status_code != 200 and repeats < MAX_ATTEMPTS_NUMBER:
-        repeats = repeats + 1
-        REQUEST_COUNTER = REQUEST_COUNTER + 1
-        print(f'REQUEST VARIABLES {variables}')
+    REQUEST_COUNTER += 1
+    print(f'REQUEST VARIABLES {variables}')
 
-        body = {
-            "query": query,
-            "variables": variables
-        }
-        response = rq.post(GITHUB_GRAPHQL_ENDPOINT, headers=GITHUB_GRAPHQL_HEADERS,
-                           data=json.dumps(body))
-        status_code = response.status_code
-        if status_code == 200:
-            break
+    body = {
+        "query": query,
+        "variables": variables
+    }
+    response = rq.post(GITHUB_GRAPHQL_ENDPOINT,
+                       headers=GITHUB_GRAPHQL_HEADERS,
+                       data=json.dumps(body))
+    if response.status_code != 200:
         print(response.json())
-        print(response.request.body)
         print(f'Occurred unexpected status code: {response.status_code}')
-    return response.json().get('data')
+    return response
+
+
+def make_request_with_repeat(query: str, variables: Dict[str, str] = {}):
+    repeats = 0
+    while repeats < MAX_ATTEMPTS_NUMBER:
+        repeats += 1
+        response = make_request(query, variables)
+        if response.status_code == 200:
+            return response.json()
+    raise Exception("Fetching data error")
+
+
+def make_request_for_repos(query: str, variables: Dict[str, any]):
+    limit = REPOS_PER_PAGE
+    repeats = 0
+    while repeats < MAX_REPOS_REQUEST_ATTEMPTS:
+        repeats += 1
+        variables['limit'] = limit
+        resp = make_request(query, variables)
+        if resp.status_code == 200:
+            data = resp.json().get('data')
+            edges = data.get('user').get('repositories').get('edges')
+            return edges, limit
+        limit = 1 if limit == 1 else int(limit / 2)
+    raise Exception("Fetching data error")
 
 
 def fetch_all_repos_data(username: str, user_id: str):
     variables = {"login": username, "userId": user_id}
-    data = make_request(REPOSITORY_GRAPHQL_QUERY, variables)
-    edges = data.get('user').get('repositories').get('edges')
+    edges, limit = make_request_for_repos(REPOSITORY_GRAPHQL_QUERY, variables)
     all_edges = edges
 
-    while len(edges) == REPOS_PER_PAGE:
-        cursor = edges[-1].get('cursor')
-        variables['repoCursor'] = cursor
-        data = make_request(REPOSITORY_GRAPHQL_QUERY, variables)
-        edges = data.get('user').get('repositories').get('edges')
+    while len(edges) == limit:
+        variables['repoCursor'] = edges[-1].get('cursor')
+        edges, limit = make_request_for_repos(REPOSITORY_GRAPHQL_QUERY,
+                                              variables)
         all_edges += edges
     return all_edges
+
+
+def extract_deps(repo: object):
+    result = []
+    for manifest in repo.get('dependencyGraphManifests').get('nodes'):
+        deps = manifest.get('dependencies').get('nodes')
+        result.extend(map(lambda e: e.get('packageName'), deps))
+    return result
 
 
 def fetch_repos(username: str, user_id: str):
@@ -107,63 +145,85 @@ def fetch_repos(username: str, user_id: str):
     repos = {}
     for edge in edges_list:
         repo = edge.get('node')
+        branchRef = repo.get('defaultBranchRef')
+        # empty repos have no default branch
+        if repo.get('isFork') or not branchRef:
+            continue
         name = repo.get('name')
         description = repo.get('description')
-        branch = repo.get('defaultBranchRef').get('target')
-        topics = list(map(lambda e: e.get('name'), repo.get('topics').get('nodes')))
-        languages = list(map(lambda e: e.get('name'), repo.get('languages').get('nodes')))
-        commits = {
-            OUTPUT_ATTRIBUTE_NAME['commits_authored']: branch.get('userCommits').get('totalCount'),
-            OUTPUT_ATTRIBUTE_NAME['commits_total']: branch.get('totalCommits').get('totalCount'),
-        }
+        branch = branchRef.get('target')
+        topics = list(
+            map(lambda e: e.get('name'), repo.get('topics').get('nodes')))
+        langs = repo.get('languages').get('nodes')
+        language = langs[0].get('name') if len(langs) == 1 else None
+        deps = extract_deps(repo)
         repos[name] = {
             OUTPUT_ATTRIBUTE_NAME['repo_name']: name,
             OUTPUT_ATTRIBUTE_NAME['repo_topics']: topics,
-            OUTPUT_ATTRIBUTE_NAME['repo_commits']: commits,
-            OUTPUT_ATTRIBUTE_NAME['repo_languages']: languages,
+            OUTPUT_ATTRIBUTE_NAME['repo_main_language']: language,
             OUTPUT_ATTRIBUTE_NAME['repo_description']: description,
+            OUTPUT_ATTRIBUTE_NAME['commits_authored']: branch.get(
+                'userCommits').get('totalCount'),
+            OUTPUT_ATTRIBUTE_NAME['commits_total']: branch.get(
+                'totalCommits').get('totalCount'),
+            OUTPUT_ATTRIBUTE_NAME['repo_deps']: deps,
         }
     return repos
 
 
 def fetch_user(username: str):
     variables = {"login": username}
-    data = make_request(USER_GRAPHQL_QUERY, variables)
-    return data.get('user')
-
-
-def validate_user(user: Dict):
-    return user and int(user.get('repositories').get('totalCount')) >= 5
+    data = make_request_with_repeat(USER_GRAPHQL_QUERY, variables)
+    return data.get('data').get('user')
 
 
 def fetch_data_for(usernames: pd.Series):
-    collection = {}
-    size = usernames.size
+    global NOT_EXISTING_USERNAMES, USERS_WITHOUT_ENOUGH_REPOS
+    collection, not_found, not_enough_repos = {}, [], []
+
+    i = 0
+    size = usernames.index[-1]
     for idx, username in usernames.items():
         print(f'Progress {idx} of {size}, Total requests: {REQUEST_COUNTER}')
+        i += 1
+        if i % SAVE_STEP == 0:
+            update_data(collection, not_found, not_enough_repos)
+            collection, not_found, not_enough_repos = {}, [], []
+
         user = fetch_user(username)
-        if not validate_user(user):
+        if not user:
+            not_found.append(username)
             continue
+
         user_id = user.get('id')
         repos = fetch_repos(username, user_id)
+        if len(repos.keys()) < 5:
+            not_enough_repos.append(username)
+            continue
+
         collection[username] = {
             OUTPUT_ATTRIBUTE_NAME['user_name']: username,
             OUTPUT_ATTRIBUTE_NAME['user_bio']: user.get('bio'),
             OUTPUT_ATTRIBUTE_NAME['user_id']: user_id,
             OUTPUT_ATTRIBUTE_NAME['repos']: repos
         }
-        if idx % SAVE_STEP == 0:
-            update_data(collection)
-            collection = {}
 
+    update_data(collection, not_found, not_enough_repos)
     print(f'Progress {size} of {size}, Total requests: {REQUEST_COUNTER}')
-    update_data(collection)
+    print(f'Not existing usernames in GitHub: {NOT_EXISTING_USERNAMES}')
+    print(
+        f'GitHub users without enough repos: {USERS_WITHOUT_ENOUGH_REPOS}')
+    print(f'Number of users in result file: {USERS_WITHOUT_ENOUGH_REPOS}')
 
 
-already_saved = load_data()
-input_usernames = pd.read_csv(INPUT_FILENAME, delimiter=',')[USERNAME_COLUMN_NAME]
+def get_waiting_usernames():
+    users, not_found, repos = load_data()
+    skip = repos + not_found + list(users.keys())
 
-distinct_usernames = input_usernames.drop_duplicates()
-waiting_usernames = distinct_usernames[~distinct_usernames.isin(already_saved.keys())]
+    input_un = pd.read_csv(INPUT_FILENAME, delimiter=',')[USERNAME_COLUMN_NAME]
+    distinct_un = input_un.drop_duplicates()
+    return distinct_un[~distinct_un.isin(skip)]
 
+
+waiting_usernames = get_waiting_usernames()
 fetch_data_for(waiting_usernames)

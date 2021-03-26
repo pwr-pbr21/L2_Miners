@@ -2,9 +2,6 @@ query ($login: String!) {
   user(login: $login) {
     id
     bio
-    repositories {
-      totalCount
-    }
   }
 }
 
@@ -14,13 +11,14 @@ query ($login: String!) {
 
 --------------------------------------------------------------------------
 
-query ($login: String!, $userId: ID!, $repoCursor: String) {
+query ($login: String!, $userId: ID!, $limit: Int!, $repoCursor: String) {
   user(login: $login) {
-    repositories(first: 100, after: $repoCursor) {
+    repositories(first: $limit, after: $repoCursor) {
       edges {
         cursor
         node {
           name
+          isFork
           description
           dependencyGraphManifests {
             nodes {
