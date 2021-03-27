@@ -2,4 +2,5 @@
 venv
 auth.key
 input.csv
-output.json
+*.json
+!output.json
