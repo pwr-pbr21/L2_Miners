@@ -146,14 +146,16 @@ def make_request_for_repos(query: str, variables: Dict[str, any]):
 
 def fetch_all_repos_data(username: str, user_id: str):
     variables = {"login": username, "userId": user_id}
-    edges, limit, success = make_request_for_repos(REPOSITORY_GRAPHQL_QUERY, variables)
+    edges, limit, success = make_request_for_repos(REPOSITORY_GRAPHQL_QUERY,
+                                                   variables)
     if not success:
         return None, False
 
     all_edges = edges
     while len(edges) == limit:
         variables['repoCursor'] = edges[-1].get('cursor')
-        edges, limit, success = make_request_for_repos(REPOSITORY_GRAPHQL_QUERY, variables)
+        edges, limit, success = make_request_for_repos(
+            REPOSITORY_GRAPHQL_QUERY, variables)
         if not success:
             return None, False
         all_edges += edges
@@ -187,7 +189,8 @@ def fetch_repos(username: str, user_id: str):
         user_commits = branch.get('userCommits').get('totalCount')
         total_commits = branch.get('totalCommits').get('totalCount')
         language = langs[0].get('name') if len(langs) == 1 else None
-        topics = list(map(lambda e: e.get('name'), repo.get('topics').get('nodes')))
+        topics = list(
+            map(lambda e: e.get('name'), repo.get('topics').get('nodes')))
         repos[name] = {
             OUTPUT_ATTRIBUTE_NAME['repo_name']: name,
             OUTPUT_ATTRIBUTE_NAME['repo_deps']: deps,
@@ -205,7 +208,7 @@ def fetch_data_for(usernames: pd.Series):
     collection = {}
 
     i = 0
-    size = usernames.index[-1]
+    size = 0 if len(usernames.index) == 0 else usernames.index[-1]
     for idx, username in usernames.items():
         i += 1
         print(f'Progress {idx} of {size}, Total requests: {REQUEST_COUNTER}')
@@ -231,11 +234,13 @@ def fetch_data_for(usernames: pd.Series):
                     OUTPUT_ATTRIBUTE_NAME['repos']: repos
                 }
         if i % SAVE_STEP == 0:
-            update_data(collection, not_found_users, not_enough_repos, users_with_errors)
+            update_data(collection, not_found_users, not_enough_repos,
+                        users_with_errors)
             not_found_users, not_enough_repos, users_with_errors = [], [], []
             collection = {}
 
-    update_data(collection, not_found, not_enough_repos, users_with_errors)
+    update_data(collection, not_found_users, not_enough_repos,
+                users_with_errors)
     print(f'Progress {size} of {size}, Total requests: {REQUEST_COUNTER}')
 
 
