@@ -41,10 +41,21 @@ def prepare_author_information(so_data, gh_data) -> pd.DataFrame:
                 'gh_roles': gh_roles
             })
         else:
-            print(f'Error: \"{gh_login}\" not in Stack data!', file=stderr)
+            print(f'Warning: \"{gh_login}\" not in Stack data!', file=stderr)
     df = pd.DataFrame(data)
     df.gh_bio = df.gh_bio.fillna("")  # fill empty cells with empty string
     return df
+
+
+def author_information(author_df: pd.DataFrame) -> pd.DataFrame:
+    author_df.gh_bio = author_df.gh_bio.apply(strip_html_tags).apply(strip_numbers)
+    bio_bw = apply_bag_of_words(author_df.gh_bio.values.astype("U"), BIO_MAX, BIO_MIN)
+    print(f"{len(bio_bw[0])} words were selected for developer bio after Bag of Words.")
+    return pd.DataFrame(
+        data=normalize(bio_bw[1].toarray()),
+        columns=[b + " (Bio)" for b in bio_bw[0]],
+        index=author_df.gh_login
+    )
 
 
 def prepare_repos_information(gh_data) -> pd.DataFrame:
@@ -66,27 +77,50 @@ def prepare_repos_information(gh_data) -> pd.DataFrame:
     return df
 
 
-def author_information(df):
-    df.gh_bio = df.gh_bio.apply(strip_html_tags).apply(strip_numbers)
-    bio_bw = apply_bag_of_words(df.gh_bio.values.astype("U"), BIO_MAX, BIO_MIN)
-    print(f"{len(bio_bw[0])} words were selected for developer bio after Bag of Words.")
-    return pd.DataFrame(
-        data=normalize(bio_bw[1].toarray()),
-        columns=[b + " (Bio)" for b in bio_bw[0]],
-        index=df.gh_login
+def repos_information(repo_df: pd.DataFrame, bio_df):
+    repo_df.repo_name = repo_df.repo_name.apply(strip_html_tags).apply(strip_numbers)
+    repo_df.repo_desc = repo_df.repo_desc.apply(strip_html_tags).apply(strip_numbers)
+    repo_df.repo_tags = repo_df.repo_tags.apply(strip_html_tags).apply(strip_numbers)
+    desc_df = repo_df.groupby("gh_login").agg(lambda c: " ".join(c))
+    # right join with bio_ds to include developers without repositories
+    desc_df = desc_df.join(bio_df, how="right").iloc[:, :3]
+
+    repo_desc_bw = apply_bag_of_words(
+        desc_df.repo_desc.values.astype("U"), DESC_MAX, DESC_MIN)
+    # repo_topics_bw = apply_bag_of_words(
+    #     desc_df.repo_tags.values.astype("U"), DESC_MAX, DESC_MIN)
+    repo_names_bw = apply_bag_of_words(
+        desc_df.repo_name.values.astype("U"), DESC_MAX, DESC_MIN)
+
+    rdesc_ds = pd.DataFrame(
+        data=normalize(repo_desc_bw[1].toarray()),
+        columns=[b + " (desc.)" for b in repo_desc_bw[0]],
+        index=desc_df.index
     )
+    # rtopics_ds = pd.DataFrame(
+    #     data=normalize(repo_topics_bw[1].toarray()),
+    #     columns=[b + " (topic)" for b in repo_topics_bw[0]],
+    #     index=desc_df.index
+    # )
+    rnames_ds = pd.DataFrame(
+        data=normalize(repo_names_bw[1].toarray()),
+        columns=[b + " (name)" for b in repo_names_bw[0]],
+        index=desc_df.index
+    )
+    return rdesc_ds, pd.DataFrame(), rnames_ds
 
 
 def main():
     print("1: Reading stack and github data")
-    _so_data, _gh_data = read_stack_data(STACK_PATH), read_github_data(GITHUB_PATH)
+    so_data, gh_data = read_stack_data(STACK_PATH), read_github_data(GITHUB_PATH)
 
     print("2: Preparing author information")
-    author_ds = prepare_author_information(_so_data, _gh_data)
-    bio_ds = author_information(author_ds)
+    author_df = prepare_author_information(so_data, gh_data)
+    bio_df = author_information(author_df)
 
     print("3: Preparing repos information")
-    repo_ds = prepare_repos_information(_gh_data)
+    repo_df = prepare_repos_information(gh_data)
+    rdesc_ds, rtopics_ds, rnames_ds = repos_information(repo_df, bio_df)
 
 
 if __name__ == '__main__':
