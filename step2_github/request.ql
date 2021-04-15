@@ -20,16 +20,16 @@ query ($login: String!, $userId: ID!, $limit: Int!, $repoCursor: String) {
           name
           isFork
           description
-          dependencyGraphManifests {
+          dependencyGraphManifests(first: 100) {
             nodes {
-              dependencies {
+              dependencies(first: 100) {
                 nodes {
                   packageName
                 }
               }
             }
           }
-          languages(first: 100, orderBy: {field: SIZE, direction: DESC}) {
+          languages(first: 1, orderBy: {field: SIZE, direction: DESC}) {
             nodes {
               name
             }

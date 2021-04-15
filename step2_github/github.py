@@ -5,8 +5,8 @@ from typing import Dict
 import pandas as pd
 import requests as rq
 
-INPUT_FILENAME = '../step1_stack/QueryResultsOut.csv'
-OUTPUT_FILENAME = 'output.json'
+INPUT_FILENAME = '../data/step_1_2_StackUsersOut.csv'
+OUTPUT_FILENAME = '../data/step_2_GithubData.json'
 AUTHORIZATION_KEY_FILE = 'auth.key'
 
 USERNAME_COLUMN_NAME = 'GithubUrl'
@@ -38,13 +38,12 @@ GITHUB_GRAPHQL_HEADERS = {
 }
 
 SAVE_STEP = 4
-REPOS_PER_PAGE = 15
+REPOS_PER_PAGE = 30
 MAX_REQUEST_ATTEMPTS = 2
 
 USER_GRAPHQL_QUERY = 'query ($login: String!) { user(login: $login) { id bio } }'
-REPOSITORY_GRAPHQL_QUERY = 'query ($login: String!, $userId: ID!, $limit: Int!, $repoCursor: String) {user(login: $login) {repositories(first: $limit, after: $repoCursor) {edges {cursor node {name isFork description dependencyGraphManifests {nodes {dependencies {nodes {packageName}}}} languages(first: 1, orderBy: {field: SIZE, direction: DESC}) {nodes {name}} topics: repositoryTopics(first: 100) {nodes {topic {name}}} defaultBranchRef {target {...on Commit {totalCommits: history {totalCount} userCommits: history(author: {id: $userId}) {totalCount}}}}}}}} }'
+REPOSITORY_GRAPHQL_QUERY = 'query ($login: String!, $userId: ID!, $limit: Int!, $repoCursor: String) {user(login: $login) {repositories(first: $limit, after: $repoCursor) {edges {cursor node {name isFork description dependencyGraphManifests(first: 100) {nodes {dependencies(first: 100) {nodes {packageName}}}} languages(first: 1, orderBy: {field: SIZE, direction: DESC}) {nodes {name}} topics: repositoryTopics(first: 100) {nodes {topic {name}}} defaultBranchRef {target {...on Commit {totalCommits: history {totalCount} userCommits: history(author: {id: $userId}) {totalCount}}}}}}}} }'
 
-USER_NOT_FOUND_PATH = 'user'
 USER_NOT_FOUND_TYPE = 'NOT_FOUND'
 
 REQUEST_COUNTER = 0
@@ -101,21 +100,13 @@ def make_request(query: str, variables: Dict[str, str] = {}):
     data = response_json.get('data')
     if status != 200 or errors:
         print(f'Response status status: {status}, errors: {errors}')
+        if errors and len(errors) == 1 and errors[0].get('type') == 'RATE_LIMITED':
+            raise Exception("The limit of requests has been reached")
     return data, errors, status
 
 
 def user_not_found_error(errors: list):
-    if not errors or len(errors) != 1:
-        return False
-    error = errors[0]
-    path = error.get('path')
-    if not path and len(path) != 1:
-        return False
-    error_type = error.get('type')
-    if error_type == USER_NOT_FOUND_TYPE and path[0] == USER_NOT_FOUND_PATH:
-        return True
-    return False
-
+    return errors and len(errors) == 1 and errors[0].get('type') == USER_NOT_FOUND_TYPE
 
 def make_request_for_user(query: str, variables: Dict[str, str] = {}):
     repeats = 0
@@ -131,11 +122,11 @@ def make_request_for_user(query: str, variables: Dict[str, str] = {}):
     return None, False
 
 
-def make_request_for_repos(query: str, variables: Dict[str, any]):
+def make_request_for_repos(variables: Dict[str, any]):
     limit = REPOS_PER_PAGE
     while limit != 0:
         variables['limit'] = limit
-        data, errors, status = make_request(query, variables)
+        data, errors, status = make_request(REPOSITORY_GRAPHQL_QUERY, variables)
         if status != 200 or errors:
             limit = int(limit / 2)
             continue
@@ -146,20 +137,19 @@ def make_request_for_repos(query: str, variables: Dict[str, any]):
 
 def fetch_all_repos_data(username: str, user_id: str):
     variables = {"login": username, "userId": user_id}
-    edges, limit, success = make_request_for_repos(REPOSITORY_GRAPHQL_QUERY,
-                                                   variables)
+    edges, limit, success = make_request_for_repos(variables)
     if not success:
         return None, False
 
     all_edges = edges
     while len(edges) == limit:
         variables['repoCursor'] = edges[-1].get('cursor')
-        edges, limit, success = make_request_for_repos(
-            REPOSITORY_GRAPHQL_QUERY, variables)
+        edges, limit, success = make_request_for_repos(variables)
         if not success:
             return None, False
         all_edges += edges
-    return all_edges, True
+
+    return list(map(lambda e: e.get('node'), all_edges)), True
 
 
 def extract_deps(repo: object):
@@ -171,12 +161,11 @@ def extract_deps(repo: object):
 
 
 def fetch_repos(username: str, user_id: str):
-    edges_list, success = fetch_all_repos_data(username, user_id)
+    repos_list, success = fetch_all_repos_data(username, user_id)
     if not success:
         return None, False
     repos = {}
-    for edge in edges_list:
-        repo = edge.get('node')
+    for repo in repos_list:
         branchRef = repo.get('defaultBranchRef')
         # empty repos have no default branch
         if repo.get('isFork') or not branchRef:
@@ -189,8 +178,7 @@ def fetch_repos(username: str, user_id: str):
         user_commits = branch.get('userCommits').get('totalCount')
         total_commits = branch.get('totalCommits').get('totalCount')
         language = langs[0].get('name') if len(langs) == 1 else None
-        topics = list(
-            map(lambda e: e.get('name'), repo.get('topics').get('nodes')))
+        topics = list(map(lambda e: e.get('topic').get('name'), repo.get('topics').get('nodes')))
         repos[name] = {
             OUTPUT_ATTRIBUTE_NAME['repo_name']: name,
             OUTPUT_ATTRIBUTE_NAME['repo_deps']: deps,
