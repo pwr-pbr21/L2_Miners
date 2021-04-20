@@ -38,7 +38,7 @@ GITHUB_GRAPHQL_HEADERS = {
 }
 
 SAVE_STEP = 4
-REPOS_PER_PAGE = 30
+REPOS_PER_PAGE = 7
 MAX_REQUEST_ATTEMPTS = 2
 
 USER_GRAPHQL_QUERY = 'query ($login: String!) { user(login: $login) { id bio } }'
