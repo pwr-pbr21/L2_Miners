@@ -110,6 +110,51 @@ def repos_information(repo_df: pd.DataFrame, bio_df):
     return rdesc_ds, pd.DataFrame(), rnames_ds
 
 
+def prepare_language_information() -> pd.DataFrame:
+    raise NotImplementedError()
+
+
+def language_information() -> pd.DataFrame:
+    raise NotImplementedError()
+
+
+def prepare_dependencies_information(gh_data: pd.DataFrame) -> pd.DataFrame:
+    data = []
+    dependencies = set()
+    users = set()
+    for gh_login, user_info in gh_data.get("users").items():
+        for repo_name, repo_info in user_info.get("repositories").items():
+            for dependency in repo_info.get("dependencies"):
+                dependencies.add(dependency)
+                data.append({
+                    'gh_login': gh_login,
+                    'dep_name': dependency
+                })
+        users.add(gh_login)
+
+    return pd.DataFrame(data)
+
+
+def dependencies_information(dep_df: pd.DataFrame, bio_df: pd.DataFrame) -> pd.DataFrame:
+    deps_popularity = dep_df.groupby('dep_name')['dep_name'].count()
+    deps_popularity = deps_popularity.sort_values(ascending=False)
+    deps_popularity = deps_popularity.iloc[:1000]
+    dep_df = dep_df[dep_df['dep_name'].isin(deps_popularity.index)]
+    dep_df = pd.get_dummies(dep_df.set_index('gh_login')['dep_name'].astype(str)).max(level=0).sort_index()
+
+    deps_ds = dep_df.join(bio_df.iloc[:, :0], how="right").fillna(0)
+
+    dropped_dependencies = find_correlation(deps_ds, "spearman", CORR_THRESHOLD)
+    deps_ds = deps_ds.drop(dropped_dependencies.keys(), axis=1)
+
+    unique_dependencies = deps_ds.nunique()[deps_ds.nunique() <= 1].index
+    deps_ds = deps_ds.drop(unique_dependencies, axis=1)
+
+    deps_ds = deps_ds.rename(columns={k: k + " (dep)" for k in deps_ds.columns})
+    deps_ds = deps_ds.astype(bool)
+    return deps_ds
+
+
 def main():
     print("1: Reading stack and github data")
     so_data, gh_data = read_stack_data(STACK_PATH), read_github_data(GITHUB_PATH)
@@ -121,6 +166,12 @@ def main():
     print("3: Preparing repos information")
     repo_df = prepare_repos_information(gh_data)
     rdesc_ds, rtopics_ds, rnames_ds = repos_information(repo_df, bio_df)
+
+    print("4: Preparing language information")
+
+    print("5: Preparing dependencies information")
+    deps_ds = prepare_dependencies_information(gh_data)
+    deps_ds = dependencies_information(deps_ds, bio_df)
 
 
 if __name__ == '__main__':
