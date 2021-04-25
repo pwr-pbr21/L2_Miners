@@ -49,6 +49,17 @@ USER_NOT_FOUND_TYPE = 'NOT_FOUND'
 REQUEST_COUNTER = 0
 
 
+def safeget(dct, *keys):
+    if type(dct) is not dict:
+        return None
+    for key in keys:
+        try:
+            dct = dct[key]
+        except KeyError:
+            return None
+    return dct
+
+
 def load_data():
     if os.path.isfile(OUTPUT_FILENAME):
         with open(OUTPUT_FILENAME, "r") as outfile:
@@ -108,6 +119,7 @@ def make_request(query: str, variables: Dict[str, str] = {}):
 def user_not_found_error(errors: list):
     return errors and len(errors) == 1 and errors[0].get('type') == USER_NOT_FOUND_TYPE
 
+
 def make_request_for_user(query: str, variables: Dict[str, str] = {}):
     repeats = 0
     while repeats < MAX_REQUEST_ATTEMPTS:
@@ -124,38 +136,38 @@ def make_request_for_user(query: str, variables: Dict[str, str] = {}):
 
 def make_request_for_repos(variables: Dict[str, any]):
     limit = REPOS_PER_PAGE
+    edges = []
     while limit != 0:
         variables['limit'] = limit
         data, errors, status = make_request(REPOSITORY_GRAPHQL_QUERY, variables)
-        if status != 200 or errors:
-            limit = int(limit / 2)
-            continue
-        edges = data.get('user').get('repositories').get('edges')
-        return edges, limit, True
-    return None, None, False
+        edges = safeget(data, 'user', 'repositories', 'edges')
+        if status == 200 and not errors:
+            return edges, limit, True
+        limit = int(limit / 2)
+    return edges, 1, False
 
 
 def fetch_all_repos_data(username: str, user_id: str):
+    all_edges = []
+
     variables = {"login": username, "userId": user_id}
     edges, limit, success = make_request_for_repos(variables)
-    if not success:
-        return None, False
+    if success:
+        all_edges += edges
 
-    all_edges = edges
-    while len(edges) == limit:
+    while edges and len(edges) == limit:
         variables['repoCursor'] = edges[-1].get('cursor')
         edges, limit, success = make_request_for_repos(variables)
-        if not success:
-            return None, False
-        all_edges += edges
+        if success:
+            all_edges += edges
 
     return list(map(lambda e: e.get('node'), all_edges)), True
 
 
 def extract_deps(repo: object):
     result = []
-    for manifest in repo.get('dependencyGraphManifests').get('nodes'):
-        deps = manifest.get('dependencies').get('nodes')
+    for manifest in safeget(repo, 'dependencyGraphManifests', 'nodes'):
+        deps = safeget(manifest, 'dependencies', 'nodes')
         result.extend(map(lambda e: e.get('packageName'), deps))
     return result
 
@@ -175,10 +187,10 @@ def fetch_repos(username: str, user_id: str):
         description = repo.get('description')
         langs = repo.get('languages').get('nodes')
         branch = branchRef.get('target')
-        user_commits = branch.get('userCommits').get('totalCount')
-        total_commits = branch.get('totalCommits').get('totalCount')
+        user_commits = safeget(branch, 'userCommits', 'totalCount')
+        total_commits = safeget(branch, 'totalCommits', 'totalCount')
         language = langs[0].get('name') if len(langs) == 1 else None
-        topics = list(map(lambda e: e.get('topic').get('name'), repo.get('topics').get('nodes')))
+        topics = list(map(lambda e: safeget(e, 'topic', 'name'), safeget(repo, 'topics', 'nodes')))
         repos[name] = {
             OUTPUT_ATTRIBUTE_NAME['repo_name']: name,
             OUTPUT_ATTRIBUTE_NAME['repo_deps']: deps,
