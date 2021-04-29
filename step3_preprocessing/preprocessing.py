@@ -258,7 +258,7 @@ def prepare_dataset():
 
 def prepare_and_save_dataset():
     _, _, Z = prepare_dataset()
-    Z.to_csv(PROCESSED_PATH_OUT, index=False)
+    Z.to_csv(PROCESSED_PATH_OUT, index=False, sep=";")
 
 
 if __name__ == '__main__':
