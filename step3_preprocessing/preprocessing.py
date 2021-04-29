@@ -13,6 +13,8 @@ REPO_THRESHOLD = 5
 GITHUB_PATH = "../data/step_2_GithubData.json"
 STACK_PATH = "../data/step_1_2_StackUsersOut.csv"
 
+PROCESSED_PATH_OUT = "../data/step_3_processed_ground_truth.csv"
+
 BIO_MIN = 0.01
 BIO_MAX = 0.2
 DESC_MIN = 0.04
@@ -76,7 +78,7 @@ def prepare_repos_information(gh_data) -> pd.DataFrame:
     for gh_login, user_info in gh_data.get("users").items():
         for repo_name, repo_info in user_info.get("repositories").items():
             repo_desc = repo_info.get("description")
-            repo_tags = ""  # To fix
+            repo_tags = " ".join(repo_info.get("topics"))
             data.append({
                 'gh_login': gh_login,
                 'repo_name': repo_name,
@@ -100,8 +102,8 @@ def repos_information(repo_df, bio_df):
 
     repo_desc_bw = apply_bag_of_words(
         desc_df.repo_desc.values.astype("U"), DESC_MAX, DESC_MIN)
-    # repo_topics_bw = apply_bag_of_words(
-    #     desc_df.repo_tags.values.astype("U"), DESC_MAX, DESC_MIN)
+    repo_topics_bw = apply_bag_of_words(
+        desc_df.repo_tags.values.astype("U"), DESC_MAX, DESC_MIN)
     repo_names_bw = apply_bag_of_words(
         desc_df.repo_name.values.astype("U"), DESC_MAX, DESC_MIN)
 
@@ -110,17 +112,17 @@ def repos_information(repo_df, bio_df):
         columns=[b + " (desc.)" for b in repo_desc_bw[0]],
         index=desc_df.index
     )
-    # rtopics_ds = pd.DataFrame(
-    #     data=normalize(repo_topics_bw[1].toarray()),
-    #     columns=[b + " (topic)" for b in repo_topics_bw[0]],
-    #     index=desc_df.index
-    # )
+    rtopics_ds = pd.DataFrame(
+        data=normalize(repo_topics_bw[1].toarray()),
+        columns=[b + " (topic)" for b in repo_topics_bw[0]],
+        index=desc_df.index
+    )
     rnames_ds = pd.DataFrame(
         data=normalize(repo_names_bw[1].toarray()),
         columns=[b + " (name)" for b in repo_names_bw[0]],
         index=desc_df.index
     )
-    return rdesc_ds, pd.DataFrame(), rnames_ds
+    return rdesc_ds, rtopics_ds, rnames_ds
 
 
 def prepare_language_information(gh_data) -> pd.DataFrame:
@@ -249,8 +251,15 @@ def prepare_dataset():
     X = bio_ds.join([rdesc_ds, rtopics_ds, rnames_ds, lang_ds, deps_ds])
     Y = filtered_authors.loc[:, "Backend":]
     Y.index = X.index
-    return X, Y
+    Y = Y.astype(int)
+    Z = X.join(Y)
+    return X, Y, Z
+
+
+def prepare_and_save_dataset():
+    _, _, Z = prepare_dataset()
+    Z.to_csv(PROCESSED_PATH_OUT, index=False)
 
 
 if __name__ == '__main__':
-    X, Y = prepare_dataset()
+    prepare_and_save_dataset()
