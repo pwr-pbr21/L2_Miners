@@ -6,6 +6,7 @@ services:
         working_dir: /root/technical-roles-script
         volumes:
             - ./src:/root/technical-roles-script
+            - ../data:/data
             - ./inputData:/inputData
             - ./outputData:/outputData
             
