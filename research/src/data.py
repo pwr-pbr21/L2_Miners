@@ -43,13 +43,7 @@ nb_clf = OneVsRestClassifier(nb_baseline)
 
 # load data
 dataset = loadtxt(PROCESED, delimiter=",")
-# split data into X and y
-X = dataset[:,0:8]
-Y = dataset[:,8]
-# split data into train and test sets
-seed = 7
-test_size = 0.33
-X_train, X_test, y_train, y_test = train_test_split(X, Y, test_size=test_size, random_state=seed)
+X_train, X_test, y_train, y_test = train_test_split(X, Y, test_size=FOLDS, random_state=SEED)
 # fit model no training data
 model = XGBClassifier()
 model.fit(X_train, y_train)
