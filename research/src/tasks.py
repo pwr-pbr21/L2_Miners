@@ -1,21 +1,48 @@
+import itertools
+from threading import Thread
+
+from sklearn.multioutput import ClassifierChain
+from sklearn.neural_network import MLPClassifier
+from sklearn.neighbors import KNeighborsClassifier
+
 from data import *
+from utils import *
 
 
 # RQ.1: How accurate are machine learning classifiers in identifying technical roles?
 
 
+# noinspection DuplicatedCode
 def task1():
-    br_scores, br_folds = classify(X, Y, skf, rf_clf, average="micro")
-    b_scores, b_folds = classify(X, Y, skf, baseline_clf, average="micro")
-    nb_scores, nb_folds = classify(X, Y, skf, nb_clf, average="micro")
+    run_classification(X, Y)
 
-    print("******** Random Forest ********")
-    classify_report(br_scores, Y.columns)
-    print("\n******** Naive Bayes ********")
-    classify_report(nb_scores, Y.columns)
-    print("\n******** Baseline ********")
-    classify_report(b_scores, Y.columns)
 
+def run_classification(_x, _y):
+    def classify_in_thread(name, thread_id, results, clf):
+        log(f"Begin of {name}")
+        scores, folds = classify(_x, _y, skf, clf, average="micro", name=name)
+        results[thread_id] = (name, scores, folds)
+        log(f"End of {name}")
+
+    _results = [None] * 4
+
+    _threads = [
+        Thread(target=classify_in_thread, args=("Random Forest", 0, _results, rf_clf)),
+        Thread(target=classify_in_thread, args=("Native Bayes", 1, _results, nb_clf)),
+        Thread(target=classify_in_thread, args=("Baseline", 2, _results, baseline_clf)),
+        Thread(target=classify_in_thread, args=("GradientBoost", 3, _results, gb_clf))
+    ]
+
+    for t in _threads:
+        t.start()
+
+    for t in _threads:
+        t.join()
+
+    for r in _results:
+        if r is not None:
+            print(f"******** {r[0]} ********")
+            classify_report(r[1], Y.columns)
 
 
 # RQ.2: What are the most relevant features to identify technical roles?
@@ -111,30 +138,12 @@ def task3():
 # RQ.4 How effectively can we identify full-stack developers?
 
 def task4():
-    fs_br_scores, _ = classify(X_fs, Y_fs, skf, rf_clf, average="micro")
-    fs_b_scores, _ = classify(X_fs, Y_fs, skf, baseline_clf, average="micro")
-    fs_nb_scores, _ = classify(X_fs, Y_fs, skf, nb_clf, average="micro")
-
-    print("******** Random Forest ********")
-    classify_report(fs_br_scores, Y_fs.columns)
-    print("\n******** Naive Bayes ********")
-    classify_report(fs_nb_scores, Y_fs.columns)
-    print("\n******** Baseline ********")
-    classify_report(fs_b_scores, Y_fs.columns)
+    run_classification(X_fs, Y_fs)
 
     fs_roles = ["Backend", "Frontend"]
     Y_fs.loc[Y_fs.FullStack == 1, fs_roles] = 1
 
-    fs_br_scores, _ = classify(X_fs, Y_fs, skf, rf_clf, average="micro")
-    fs_b_scores, _ = classify(X_fs, Y_fs, skf, baseline_clf, average="micro")
-    fs_nb_scores, _ = classify(X_fs, Y_fs, skf, nb_clf, average="micro")
-
-    print("******** Random Forest ********")
-    classify_report(fs_br_scores, Y_fs.columns, )
-    print("\n******** Naive Bayes ********")
-    classify_report(fs_nb_scores, Y_fs.columns)
-    print("\n******** Baseline ********")
-    classify_report(fs_b_scores, Y_fs.columns)
+    run_classification(X_fs, Y_fs)
 
 
 def task5():
@@ -277,7 +286,7 @@ def task5():
     classifiers = map(lambda c: OneVsRestClassifier(c), classifiers)
 
     for name, clf in zip(names, classifiers):
-        scores, _ = classify(X, Y, skf, clf, average="micro")
+        scores, _ = classify(X, Y, skf, clf, average="micro", name=name)
 
         print(f"******** {name} ********")
         classify_report(scores, Y.columns)

@@ -16,7 +16,7 @@ from sklearn.metrics import (auc, f1_score, hamming_loss, jaccard_score,
                              precision_recall_curve,
                              precision_recall_fscore_support, precision_score,
                              recall_score)
-
+from data import FOLDS, VERBOSE
 
 def strip_html_tags(text):
     """Function to remove html tags.
@@ -102,7 +102,6 @@ def calculate_metrics(Y_true, Y_pred, Y_proba, average):
 
     @return a list with the metrics results used in our study
     """
-
     if len(Y_true.shape) == 1:
         Y_proba = Y_proba[:, 1]
     p, r, f1, s = precision_recall_fscore_support(
@@ -138,7 +137,7 @@ def calculate_metrics(Y_true, Y_pred, Y_proba, average):
     return scores
 
 
-def classify(X, Y, skf, clf, round_threshold=0.5, average="macro"):
+def classify(X, Y, skf, clf, round_threshold=0.5, average="macro", name=""):
     """ Classification function.
 
     This function performs a multi-label classification using the dataset and 
@@ -153,7 +152,6 @@ def classify(X, Y, skf, clf, round_threshold=0.5, average="macro"):
     @return a tuple with the overall scores obtained from the classification 
         and the score for each generated fold.
     """
-
     X = X.values
     if isinstance(Y, pd.Series):
         labels = ["{}_0".format(Y.name), "{}_1".format(Y.name)]
@@ -162,7 +160,10 @@ def classify(X, Y, skf, clf, round_threshold=0.5, average="macro"):
         Y, labels = Y.values, list(Y.columns)
 
     fold_results = []
+    counter = 1
     for train, test in skf.split(X, Y):
+        log(f"{name}: {counter}/{FOLDS}")
+        counter += 1
         current_clf = clone(clf)
         X_train, X_test, Y_train, Y_test = X[train], X[test], Y[train], Y[test]
 
@@ -231,7 +232,7 @@ def classify_report(scores, columns):
     p, r, f1, mcc_ave = scores["precision"], scores["recall"], scores["f1"], scores["mcc_ave"]
     print("\n{: <15}{:.2f}{:10.2f}{:10.2f}{:10.2f}".format("Total:", p, r, f1, mcc_ave), flush=True)
 
-    print("MCC(As Single Label):  {:.2f}".format(scores["mcc_all"]), flush=True)
+    print("MCC(together): {:.2f}".format(scores["mcc_all"]), flush=True)
     print("AUC:           {:.2f}".format(scores["auc"]), flush=True)
     print("Jaccard:       {:.2f}".format(scores["jaccard"]), flush=True)
     print("Hamming Loss:  {:.2f}".format(scores["hamming_loss"]), flush=True)
@@ -470,6 +471,12 @@ def build_cc_data(iterations, original_scores):
 
 ###################################################################
 
+def log(*args, **kwargs):
+    """Print if in debug mode"""
+    if VERBOSE:
+        print(*args, **kwargs)
+
+
 # if 1 I can be sure that positive are really positive, but I accept that many positive can be marked as negative
 def precision_scorer():
     def score_func(y_true, y_pred):
@@ -500,7 +507,7 @@ def mcc_ave_scorer():
             y_t = np.ravel(y_true)
         else:
             y_t = y_true.values
-        mcc = [matthews_corrcoef([s[3] for s in y_t], [s[3] for s in y_pred]) for i in range(0, 1)]
+        mcc = [matthews_corrcoef([s[i] for s in y_t], [s[i] for s in y_pred]) for i in range(0, len(y_t[0]))]
         return sum(mcc) / len(mcc)
 
     return make_scorer(score_func, greater_is_better=True)
@@ -531,9 +538,20 @@ def optimize_for_grid(name, x, y, clf, skf, grid, scorer):
 
 
 def optimize_for_random(name, x, y, clf, skf, grid, scorer, iter, seed):
+    from datetime import datetime
+    import time
+
+    start_time = time.time()
     current_clf = clone(clf)
-    random_cv = RandomizedSearchCV(current_clf, grid, scoring=scorer, n_jobs=-1, cv=skf, n_iter=iter,
-                                   random_state=seed),
+    random_cv = RandomizedSearchCV(current_clf, grid, scoring=scorer, n_jobs=-1, cv=skf, n_iter=2, random_state=seed)
+    random_cv.fit(x, y)
+    elapsed_time = time.time() - start_time
+    print("Current Time =", datetime.now().strftime("%H:%M:%S"))
+    print("estimated time:", flush=True)
+    print(time.strftime("%H:%M:%S", time.gmtime(elapsed_time / 2 * iter)), flush=True)
+
+    current_clf = clone(clf)
+    random_cv = RandomizedSearchCV(current_clf, grid, scoring=scorer, n_jobs=-1, cv=skf, n_iter=iter, random_state=seed)
     random_cv.fit(x, y)
 
     print(f'******** {name} ********', flush=True)
