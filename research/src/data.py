@@ -4,6 +4,7 @@ from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
 from sklearn.model_selection import KFold
 from sklearn.multiclass import OneVsRestClassifier
 from sklearn.naive_bayes import MultinomialNB
+from sklearn.ensemble import AdaBoostClassifier # AdaBoost model
 
 SEED = 42
 FOLDS = 10
@@ -27,9 +28,11 @@ Y_fs = data_fs.loc[:,"Backend":]
 
 rf = RandomForestClassifier(n_estimators=500, random_state=SEED)
 baseline = DummyClassifier("stratified", random_state=SEED)
+ada = AdaBoostClassifier (n_estimators = 500, random_state = SEED)
 nb_baseline = MultinomialNB()
 skf = KFold(n_splits=FOLDS, random_state=SEED, shuffle=True)
 rf_clf = OneVsRestClassifier(rf)
 baseline_clf = OneVsRestClassifier(baseline)
 nb_clf = OneVsRestClassifier(nb_baseline)
+ada_clf = OneVsRestClassifier(ada)
 gb_clf = OneVsRestClassifier(GradientBoostingClassifier())
