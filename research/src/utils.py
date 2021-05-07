@@ -13,7 +13,7 @@ from sklearn.metrics import (auc, f1_score, hamming_loss, jaccard_score,
                              precision_recall_curve,
                              precision_recall_fscore_support, precision_score,
                              recall_score)
-
+from data import FOLDS, VERBOSE
 
 def strip_html_tags(text):
     """Function to remove html tags.
@@ -120,7 +120,7 @@ def calculate_metrics(Y_true, Y_pred, Y_proba, average):
     return scores
 
 
-def classify(X, Y, skf, clf, round_threshold=0.5, average="macro"):
+def classify(X, Y, skf, clf, round_threshold=0.5, average="macro", name=""):
     """ Classification function.
 
     This function performs a multi-label classification using the dataset and 
@@ -143,7 +143,10 @@ def classify(X, Y, skf, clf, round_threshold=0.5, average="macro"):
         Y, labels = Y.values, list(Y.columns)
 
     fold_results = []
+    counter = 1
     for train, test in skf.split(X, Y):
+        log(f"{name}: {counter}/{FOLDS}")
+        counter += 1
         current_clf = clone(clf)
         X_train, X_test, Y_train, Y_test = X[train], X[test], Y[train], Y[test]
 
@@ -442,3 +445,8 @@ def build_cc_data(iterations, original_scores):
         CategoricalDtype(cc_dataset.metric.unique(), ordered=True))
 
     return cc_dataset
+
+def log(*args, **kwargs):
+    """Print if in debug mode"""
+    if VERBOSE:
+        print(*args, **kwargs)

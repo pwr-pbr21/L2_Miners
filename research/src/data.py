@@ -1,14 +1,9 @@
-import sklearn
-import platform
-import itertools
-from sklearn.ensemble import RandomForestClassifier
+import pandas as pd
 from sklearn.dummy import DummyClassifier
-from sklearn.naive_bayes import MultinomialNB
+from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
 from sklearn.model_selection import KFold
 from sklearn.multiclass import OneVsRestClassifier
-from sklearn.multioutput import ClassifierChain
-
-from utils import *
+from sklearn.naive_bayes import MultinomialNB
 
 SEED = 42
 FOLDS = 10
@@ -16,6 +11,8 @@ FOLDS = 10
 BOW_TUNING = "/inputData/BoW-tuning.csv"
 PROCESED = "/data/step_3_processed_ground_truth.csv"
 PROCESED_FS = "/inputData/processed_ground_truth_fullstack.csv"
+
+VERBOSE = True
 
 PLOTS_OUT = "/outputData/plots/"
 
@@ -35,3 +32,4 @@ skf = KFold(n_splits=FOLDS, random_state=SEED, shuffle=True)
 rf_clf = OneVsRestClassifier(rf)
 baseline_clf = OneVsRestClassifier(baseline)
 nb_clf = OneVsRestClassifier(nb_baseline)
+gb_clf = OneVsRestClassifier(GradientBoostingClassifier())

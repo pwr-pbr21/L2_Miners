@@ -1,20 +1,46 @@
+import itertools
+from threading import Thread
+
+from sklearn.multioutput import ClassifierChain
+
 from data import *
+from utils import *
+
 
 # RQ.1: How accurate are machine learning classifiers in identifying technical roles?
 
 
+# noinspection DuplicatedCode
 def task1():
-    br_scores, br_folds = classify(X, Y, skf, rf_clf, average="micro")
-    b_scores, b_folds = classify(X, Y, skf, baseline_clf, average="micro")
-    nb_scores, nb_folds = classify(X, Y, skf, nb_clf, average="micro")
+    run_classification(X, Y)
 
-    print("******** Random Forest ********")
-    classify_report(br_scores, Y.columns)
-    print("\n******** Naive Bayes ********")
-    classify_report(nb_scores, Y.columns)
-    print("\n******** Baseline ********")
-    classify_report(b_scores, Y.columns)
 
+def run_classification(_x, _y):
+    def classify_in_thread(name, thread_id, results, clf):
+        log(f"Begin of {name}")
+        scores, folds = classify(_x, _y, skf, clf, average="micro", name=name)
+        results[thread_id] = (name, scores, folds)
+        log(f"End of {name}")
+
+    _results = [None] * 4
+
+    _threads = [
+        Thread(target=classify_in_thread, args=("Random Forest", 0, _results, rf_clf)),
+        Thread(target=classify_in_thread, args=("Native Bayes", 1, _results, nb_clf)),
+        Thread(target=classify_in_thread, args=("Baseline", 2, _results, baseline_clf)),
+        Thread(target=classify_in_thread, args=("GradientBoost", 3, _results, gb_clf))
+    ]
+
+    for t in _threads:
+        t.start()
+
+    for t in _threads:
+        t.join()
+
+    for r in _results:
+        if r is not None:
+            print(f"******** {r[0]} ********")
+            classify_report(r[1], Y.columns)
 
 
 # RQ.2: What are the most relevant features to identify technical roles?
@@ -28,21 +54,20 @@ def task2():
     var_imp[var_imp.category == "Dependency"].groupby("role").tail(10)
 
     p = top_10_features(var_imp)
-    ggsave(plot = p, filename = "ex2 wykres top 10", path = PLOTS_OUT)
+    ggsave(plot=p, filename="ex2 wykres top 10", path=PLOTS_OUT)
 
     for r in Y.columns:
         features_df = build_histogram_data(X, Y, var_imp, r)
         p = plot_histogram_data(features_df, r)
-        ggsave(plot = p, filename = "ex2 wykres - "+r, path = PLOTS_OUT)
-    
-    
-    
+        ggsave(plot=p, filename="ex2 wykres - " + r, path=PLOTS_OUT)
+
+
 # RQ.3: Do technical roles influence each other during classification?
 
 def task3():
     Y_rq3 = Y.loc[:, :]
     permutations = itertools.permutations(range(0, Y_rq3.shape[1]))
-    
+
     iterations = []
     for i, p in enumerate(permutations, start=1):
         p = list(p)
@@ -70,10 +95,10 @@ def task3():
                 f"f1_{role}": cc_scores[f"f1_{role}"],
             })
         iterations.append(iteration)
-    
+
     br_scores, br_folds = classify(X, Y, skf, rf_clf, average="micro")
     cc_dataset = build_cc_data(iterations, br_scores)
-    
+
     cc_general = cc_dataset[np.any([
         cc_dataset.metric == "Precision",
         cc_dataset.metric == "Recall",
@@ -92,49 +117,28 @@ def task3():
     ], axis=0)]
 
     p = (ggplot(cc_general, aes(x="index", y="value"))
-        + geom_line()
-        + geom_hline(yintercept=0, linetype="dashed")
-        + facet_wrap("~ metric", ncol=2)
-        + labs(x="Classifier Chains permutations", y="Metric value")
-        + theme_bw())
-    ggsave(plot = p, filename = "ex3 wykres 1", path = PLOTS_OUT)
+         + geom_line()
+         + geom_hline(yintercept=0, linetype="dashed")
+         + facet_wrap("~ metric", ncol=2)
+         + labs(x="Classifier Chains permutations", y="Metric value")
+         + theme_bw())
+    ggsave(plot=p, filename="ex3 wykres 1", path=PLOTS_OUT)
 
     p = (ggplot(cc_by_role, aes(x="index", y="value"))
-        + geom_line()
-        + geom_hline(yintercept=0, linetype="dashed")
-        + facet_wrap("~ metric", ncol=3)
-        + labs(x="Classifier Chains permutations", y="Metric value")
-        + theme_bw())
-    ggsave(plot = p, filename = "ex3 wykres 2", path = PLOTS_OUT)
+         + geom_line()
+         + geom_hline(yintercept=0, linetype="dashed")
+         + facet_wrap("~ metric", ncol=3)
+         + labs(x="Classifier Chains permutations", y="Metric value")
+         + theme_bw())
+    ggsave(plot=p, filename="ex3 wykres 2", path=PLOTS_OUT)
 
 
 # RQ.4 How effectively can we identify full-stack developers?
 
 def task4():
-    fs_br_scores, _ = classify(X_fs, Y_fs, skf, rf_clf, average="micro")
-    fs_b_scores, _ = classify(X_fs, Y_fs, skf, baseline_clf, average="micro")
-    fs_nb_scores, _ = classify(X_fs, Y_fs, skf, nb_clf, average="micro")
-    
-    print("******** Random Forest ********")
-    classify_report(fs_br_scores, Y_fs.columns)
-    print("\n******** Naive Bayes ********")
-    classify_report(fs_nb_scores, Y_fs.columns)
-    print("\n******** Baseline ********")
-    classify_report(fs_b_scores, Y_fs.columns)
-    
-    
+    run_classification(X_fs, Y_fs)
+
     fs_roles = ["Backend", "Frontend"]
     Y_fs.loc[Y_fs.FullStack == 1, fs_roles] = 1
 
-    fs_br_scores, _ = classify(X_fs, Y_fs, skf, rf_clf, average="micro")
-    fs_b_scores, _ = classify(X_fs, Y_fs, skf, baseline_clf, average="micro")
-    fs_nb_scores, _ = classify(X_fs, Y_fs, skf, nb_clf, average="micro")
-    
-    print("******** Random Forest ********")
-    classify_report(fs_br_scores, Y_fs.columns, )
-    print("\n******** Naive Bayes ********")
-    classify_report(fs_nb_scores, Y_fs.columns)
-    print("\n******** Baseline ********")
-    classify_report(fs_b_scores, Y_fs.columns)
-
-
+    run_classification(X_fs, Y_fs)
