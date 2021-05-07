@@ -8,7 +8,10 @@ import pandas as pd
 from pandas.api.types import CategoricalDtype
 from plotnine import *
 from sklearn.base import clone
+from sklearn.metrics import make_scorer
+from sklearn.metrics import matthews_corrcoef
 from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.model_selection import GridSearchCV, RandomizedSearchCV
 from sklearn.metrics import (auc, f1_score, hamming_loss, jaccard_score,
                              precision_recall_curve,
                              precision_recall_fscore_support, precision_score,
@@ -99,11 +102,23 @@ def calculate_metrics(Y_true, Y_pred, Y_proba, average):
 
     @return a list with the metrics results used in our study
     """
+
     if len(Y_true.shape) == 1:
         Y_proba = Y_proba[:, 1]
     p, r, f1, s = precision_recall_fscore_support(
         Y_true, Y_pred, zero_division=0)
     pr, rr, _ = precision_recall_curve(Y_true.ravel(), Y_proba.ravel())
+
+    # for each label
+    mcc = [matthews_corrcoef([s[i] for s in Y_true], [s[i] for s in Y_pred]) for i in range(0, Y_true.shape[1])]
+
+    # all as one
+    y_true1 = [s[i] * 2 ** i for i in range(0, len(Y_true[0])) for s in Y_true]
+    y_pred1 = [s[i] * 2 ** i for i in range(0, len(Y_pred[0])) for s in Y_pred]
+    mcc_all = matthews_corrcoef(y_true1, y_pred1)
+
+    # average of results for single label
+    mcc_ave = sum(mcc) / len(mcc)
 
     scores = (
         precision_score(Y_true, Y_pred, average=average, zero_division=0),
@@ -112,6 +127,9 @@ def calculate_metrics(Y_true, Y_pred, Y_proba, average):
         auc(rr, pr),
         jaccard_score(Y_true, Y_pred, average=average),
         hamming_loss(Y_true, Y_pred),
+        mcc_all,
+        mcc_ave,
+        mcc,
         p,
         r,
         f1,
@@ -135,6 +153,7 @@ def classify(X, Y, skf, clf, round_threshold=0.5, average="macro"):
     @return a tuple with the overall scores obtained from the classification 
         and the score for each generated fold.
     """
+
     X = X.values
     if isinstance(Y, pd.Series):
         labels = ["{}_0".format(Y.name), "{}_1".format(Y.name)]
@@ -151,17 +170,19 @@ def classify(X, Y, skf, clf, round_threshold=0.5, average="macro"):
         Y_prob = current_clf.predict_proba(X_test)
         Y_pred = current_clf.predict(X_test)
 
-        (p, r, f1, auc, jac, hl, p_c,
-         r_c, f1_c, s_c) = calculate_metrics(Y_test, Y_pred, Y_prob, average)
+        (p, r, f1, auc, jac, hl, mcc_all,
+         mcc_ave, mcc, p_c, r_c, f1_c, s_c) = calculate_metrics(Y_test, Y_pred, Y_prob, average)
 
         # calculate overall scores for current fold
         fold_scores = {
             "precision": p,
             "recall": r,
             "f1": f1,
+            "mcc_ave": mcc_ave,
+            "mcc_all": mcc_all,
             "auc": auc,
             "jaccard": jac,
-            "hamming_loss": hl
+            "hamming_loss": hl,
         }
 
         for i in range(len(labels)):
@@ -169,6 +190,7 @@ def classify(X, Y, skf, clf, round_threshold=0.5, average="macro"):
             fold_scores["recall_{0}".format(labels[i])] = r_c[i]
             fold_scores["f1_{0}".format(labels[i])] = f1_c[i]
             fold_scores["support_{0}".format(labels[i])] = s_c[i]
+            fold_scores["mcc_{0}".format(labels[i])] = mcc[i]
 
         fold_results.append({
             "scores": fold_scores,
@@ -195,19 +217,21 @@ def classify_report(scores, columns):
     if isinstance(columns, str):
         columns = ["{}_0".format(columns), "{}_1".format(columns)]
 
-    print("{: <15}{: <10}{: <10}{: <10}{}".format(
-        "Role", "Precision", "Recall", "F1", "Support"), flush=True)
+    print("{: <15}{: <10}{: <10}{: <10}{: <10}{}".format(
+        "Role", "Precision", "Recall", "F1", "MCC", "Support"), flush=True)
     for role in columns:
         p = scores["precision_{}".format(role)]
         r = scores["recall_{}".format(role)]
         f1 = scores["f1_{}".format(role)]
+        mcc = scores["mcc_{}".format(role)]
         s = scores["support_{}".format(role)]
-        print("{: <15}{:.2f}{:10.2f}{:10.2f}{:10}"
-              .format(role, p, r, f1, s), flush=True)
+        print("{: <15}{:.2f}{:10.2f}{:10.2f}{:10.2f}{:10}"
+              .format(role, p, r, f1, mcc, s), flush=True)
 
-    p, r, f1 = scores["precision"], scores["recall"], scores["f1"]
-    print("\n{: <15}{:.2f}{:10.2f}{:10.2f}".format("Total:", p, r, f1), flush=True)
+    p, r, f1, mcc_ave = scores["precision"], scores["recall"], scores["f1"], scores["mcc_ave"]
+    print("\n{: <15}{:.2f}{:10.2f}{:10.2f}{:10.2f}".format("Total:", p, r, f1, mcc_ave), flush=True)
 
+    print("MCC(As Single Label):  {:.2f}".format(scores["mcc_all"]), flush=True)
     print("AUC:           {:.2f}".format(scores["auc"]), flush=True)
     print("Jaccard:       {:.2f}".format(scores["jaccard"]), flush=True)
     print("Hamming Loss:  {:.2f}".format(scores["hamming_loss"]), flush=True)
@@ -234,45 +258,45 @@ def top_10_features(df):
         ])
 
     return (
-        ggplot(df, aes("i", "value", group="category"))
-        + geom_segment(
-            aes(x="i", xend="i", y="min(value)",
-                yend="max(value)"),
-            linetype="dashed",
-            size=1,
-            color="grey"
-        )
-        + geom_point(aes(color="category", shape="category"), size=7)
-        + scale_x_discrete(labels=convert_label)
-        + scale_y_continuous(labels=lambda x: ["%d%%" % (v * 100) for v in x])
-        + scale_color_brewer(type="qual", palette=7)
-        + guides(
-            color=guide_legend(title="Category"),
-            shape=guide_legend(title="Category")
-        )
-        + labs(y="% Relevance", x="Features", color="category",
-               shape="category")
-        + theme_matplotlib()
-        + theme(strip_text=element_text(size=18),
-                axis_title=element_text(size=18),
-                axis_text=element_text(size=16),
-                axis_text_x=element_text(size=16),
-                legend_position="top",
-                legend_text=element_text(size=16),
-                legend_title=element_text(size=18, margin={"b": 10}),
-                legend_title_align="center",
-                aspect_ratio=1.4,
-                panel_spacing_y=0.5,
-                panel_spacing_x=2.8,
-                figure_size=(14, 9))
-        + coord_flip()
-        + facet_wrap("~ role", ncol=3, scales="free",
-                     labeller=as_labeller({
-                         "Backend": "Backend",
-                         "Frontend": "Frontend",
-                         "Mobile": "Mobile"
-                     })
-                     )
+            ggplot(df, aes("i", "value", group="category"))
+            + geom_segment(
+        aes(x="i", xend="i", y="min(value)",
+            yend="max(value)"),
+        linetype="dashed",
+        size=1,
+        color="grey"
+    )
+            + geom_point(aes(color="category", shape="category"), size=7)
+            + scale_x_discrete(labels=convert_label)
+            + scale_y_continuous(labels=lambda x: ["%d%%" % (v * 100) for v in x])
+            + scale_color_brewer(type="qual", palette=7)
+            + guides(
+        color=guide_legend(title="Category"),
+        shape=guide_legend(title="Category")
+    )
+            + labs(y="% Relevance", x="Features", color="category",
+                   shape="category")
+            + theme_matplotlib()
+            + theme(strip_text=element_text(size=18),
+                    axis_title=element_text(size=18),
+                    axis_text=element_text(size=16),
+                    axis_text_x=element_text(size=16),
+                    legend_position="top",
+                    legend_text=element_text(size=16),
+                    legend_title=element_text(size=18, margin={"b": 10}),
+                    legend_title_align="center",
+                    aspect_ratio=1.4,
+                    panel_spacing_y=0.5,
+                    panel_spacing_x=2.8,
+                    figure_size=(14, 9))
+            + coord_flip()
+            + facet_wrap("~ role", ncol=3, scales="free",
+                         labeller=as_labeller({
+                             "Backend": "Backend",
+                             "Frontend": "Frontend",
+                             "Mobile": "Mobile"
+                         })
+                         )
     )
 
 
@@ -361,20 +385,20 @@ def plot_histogram_data(histogram_df, role):
     @return The histogram to be printed
     """
     return (
-        ggplot(histogram_df, aes(x="value", fill=role))
-        + geom_histogram(alpha=0.5, position="fill", bins=5)
-        + facet_wrap("~feature",
-                     scales="free",
-                     nrow=2,
-                     labeller=["No", "Yes"]
-                     )
-        + theme_matplotlib()
-        + labs(x="Percentile values (each bar represents 10%)", y="Frequency")
-        + theme(
-            figure_size=(9, 4),
-            axis_text=element_blank(),
-            axis_ticks=element_blank()
-        )
+            ggplot(histogram_df, aes(x="value", fill=role))
+            + geom_histogram(alpha=0.5, position="fill", bins=5)
+            + facet_wrap("~feature",
+                         scales="free",
+                         nrow=2,
+                         labeller=["No", "Yes"]
+                         )
+            + theme_matplotlib()
+            + labs(x="Percentile values (each bar represents 10%)", y="Frequency")
+            + theme(
+        figure_size=(9, 4),
+        axis_text=element_blank(),
+        axis_ticks=element_blank()
+    )
     )
 
 
@@ -442,3 +466,77 @@ def build_cc_data(iterations, original_scores):
         CategoricalDtype(cc_dataset.metric.unique(), ordered=True))
 
     return cc_dataset
+
+
+###################################################################
+
+# if 1 I can be sure that positive are really positive, but I accept that many positive can be marked as negative
+def precision_scorer():
+    def score_func(y_true, y_pred):
+        return precision_score(y_true, y_pred, average="micro", zero_division=0)
+
+    return make_scorer(score_func, greater_is_better=True)
+
+
+# if 1 I can be sure there is no positives marked as negative
+def recall_scorer():
+    def score_func(y_true, y_pred):
+        return recall_score(y_true, y_pred, average="micro", zero_division=0)
+
+    return make_scorer(score_func, greater_is_better=True)
+
+
+# if 1 I can be sure positives are positive and negatives are negative
+def f1_scorer():
+    def score_func(y_true, y_pred):
+        return f1_score(y_true, y_pred, average="micro", zero_division=0)
+
+    return make_scorer(score_func, greater_is_better=True)
+
+
+def mcc_ave_scorer():
+    def score_func(y_true, y_pred):
+        if isinstance(y_true, pd.Series):
+            y_t = np.ravel(y_true)
+        else:
+            y_t = y_true.values
+        mcc = [matthews_corrcoef([s[3] for s in y_t], [s[3] for s in y_pred]) for i in range(0, 1)]
+        return sum(mcc) / len(mcc)
+
+    return make_scorer(score_func, greater_is_better=True)
+
+
+def mcc_all_scorer():
+    def score_func(y_true, y_pred):
+        if isinstance(y_true, pd.Series):
+            y_t = np.ravel(y_true)
+        else:
+            y_t = y_true.values
+        y_true1 = [s[i] * 2 ** i for i in range(0, len(y_t[0])) for s in y_t]
+        y_pred1 = [s[i] * 2 ** i for i in range(0, len(y_pred[0])) for s in y_pred]
+        result = matthews_corrcoef(y_true1, y_pred1)
+        return result
+
+    return make_scorer(score_func, greater_is_better=True)
+
+
+def optimize_for_grid(name, x, y, clf, skf, grid, scorer):
+    current_clf = clone(clf)
+    grid_cv = GridSearchCV(current_clf, grid, scoring=scorer, n_jobs=-1, cv=skf)
+    grid_cv.fit(x, y)
+    print(f'******** {name} ********', flush=True)
+    print(f'best score: {round(grid_cv.best_score_, 4)}')
+    print(f'best param: {grid_cv.best_params_}')
+    print(grid_cv.cv_results_)
+
+
+def optimize_for_random(name, x, y, clf, skf, grid, scorer, iter, seed):
+    current_clf = clone(clf)
+    random_cv = RandomizedSearchCV(current_clf, grid, scoring=scorer, n_jobs=-1, cv=skf, n_iter=iter,
+                                   random_state=seed),
+    random_cv.fit(x, y)
+
+    print(f'******** {name} ********', flush=True)
+    print(f'best score: {round(random_cv.best_score_, 4)}')
+    print(f'best param: {random_cv.best_params_}')
+    print(random_cv.cv_results_)

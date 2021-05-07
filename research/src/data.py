@@ -7,6 +7,9 @@ from sklearn.naive_bayes import MultinomialNB
 from sklearn.model_selection import KFold
 from sklearn.multiclass import OneVsRestClassifier
 from sklearn.multioutput import ClassifierChain
+from sklearn.neural_network import MLPClassifier
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.model_selection import GridSearchCV
 
 from utils import *
 
@@ -22,11 +25,11 @@ PLOTS_OUT = "/outputData/plots/"
 data = pd.read_csv(PROCESED, delimiter=";")
 data_fs = pd.read_csv(PROCESED_FS, delimiter=";")
 
-X = data.loc[:,:"zone.js (dep)"]
-Y = data.loc[:,"Backend":]
+X = data.iloc[:, :-5]
+Y = data.iloc[:, -5:]
 
-X_fs = data_fs.loc[:,:"yup (dep.)"]
-Y_fs = data_fs.loc[:,"Backend":]
+X_fs = data_fs.iloc[:, :-6]
+Y_fs = data_fs.iloc[:, -6:]
 
 rf = RandomForestClassifier(n_estimators=500, random_state=SEED)
 baseline = DummyClassifier("stratified", random_state=SEED)

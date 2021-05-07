@@ -6,6 +6,7 @@ if len(sys.argv) == 1:
     task2()
     task3()
     task4()
+    task5()
 else:
     try:
         task = int(sys.argv[1])
@@ -20,6 +21,8 @@ else:
         task3()
     elif(task == 4):
         task4()
+    elif(task == 5):
+        task5()
     else:
         raise ValueError("Invalid argument")
 
