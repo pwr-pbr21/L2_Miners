@@ -3,8 +3,10 @@
 import re
 from collections import OrderedDict
 
+import time
 import numpy as np
 import pandas as pd
+from datetime import datetime
 from pandas.api.types import CategoricalDtype
 from plotnine import *
 from sklearn.base import clone
@@ -17,6 +19,7 @@ from sklearn.metrics import (auc, f1_score, hamming_loss, jaccard_score,
                              precision_recall_fscore_support, precision_score,
                              recall_score)
 from data import FOLDS, VERBOSE
+
 
 def strip_html_tags(text):
     """Function to remove html tags.
@@ -111,11 +114,6 @@ def calculate_metrics(Y_true, Y_pred, Y_proba, average):
     # for each label
     mcc = [matthews_corrcoef([s[i] for s in Y_true], [s[i] for s in Y_pred]) for i in range(0, Y_true.shape[1])]
 
-    # all as one
-    y_true1 = [s[i] * 2 ** i for i in range(0, len(Y_true[0])) for s in Y_true]
-    y_pred1 = [s[i] * 2 ** i for i in range(0, len(Y_pred[0])) for s in Y_pred]
-    mcc_all = matthews_corrcoef(y_true1, y_pred1)
-
     # average of results for single label
     mcc_ave = sum(mcc) / len(mcc)
 
@@ -126,7 +124,6 @@ def calculate_metrics(Y_true, Y_pred, Y_proba, average):
         auc(rr, pr),
         jaccard_score(Y_true, Y_pred, average=average),
         hamming_loss(Y_true, Y_pred),
-        mcc_all,
         mcc_ave,
         mcc,
         p,
@@ -171,7 +168,7 @@ def classify(X, Y, skf, clf, round_threshold=0.5, average="macro", name=""):
         Y_prob = current_clf.predict_proba(X_test)
         Y_pred = current_clf.predict(X_test)
 
-        (p, r, f1, auc, jac, hl, mcc_all,
+        (p, r, f1, auc, jac, hl,
          mcc_ave, mcc, p_c, r_c, f1_c, s_c) = calculate_metrics(Y_test, Y_pred, Y_prob, average)
 
         # calculate overall scores for current fold
@@ -180,7 +177,6 @@ def classify(X, Y, skf, clf, round_threshold=0.5, average="macro", name=""):
             "recall": r,
             "f1": f1,
             "mcc_ave": mcc_ave,
-            "mcc_all": mcc_all,
             "auc": auc,
             "jaccard": jac,
             "hamming_loss": hl,
@@ -232,7 +228,6 @@ def classify_report(scores, columns):
     p, r, f1, mcc_ave = scores["precision"], scores["recall"], scores["f1"], scores["mcc_ave"]
     print("\n{: <15}{:.2f}{:10.2f}{:10.2f}{:10.2f}".format("Total:", p, r, f1, mcc_ave), flush=True)
 
-    print("MCC(together): {:.2f}".format(scores["mcc_all"]), flush=True)
     print("AUC:           {:.2f}".format(scores["auc"]), flush=True)
     print("Jaccard:       {:.2f}".format(scores["jaccard"]), flush=True)
     print("Hamming Loss:  {:.2f}".format(scores["hamming_loss"]), flush=True)
@@ -513,20 +508,6 @@ def mcc_ave_scorer():
     return make_scorer(score_func, greater_is_better=True)
 
 
-def mcc_all_scorer():
-    def score_func(y_true, y_pred):
-        if isinstance(y_true, pd.Series):
-            y_t = np.ravel(y_true)
-        else:
-            y_t = y_true.values
-        y_true1 = [s[i] * 2 ** i for i in range(0, len(y_t[0])) for s in y_t]
-        y_pred1 = [s[i] * 2 ** i for i in range(0, len(y_pred[0])) for s in y_pred]
-        result = matthews_corrcoef(y_true1, y_pred1)
-        return result
-
-    return make_scorer(score_func, greater_is_better=True)
-
-
 def optimize_for_grid(name, x, y, clf, skf, grid, scorer):
     current_clf = clone(clf)
     grid_cv = GridSearchCV(current_clf, grid, scoring=scorer, n_jobs=-1, cv=skf)
@@ -538,17 +519,13 @@ def optimize_for_grid(name, x, y, clf, skf, grid, scorer):
 
 
 def optimize_for_random(name, x, y, clf, skf, grid, scorer, iter, seed):
-    from datetime import datetime
-    import time
-
     start_time = time.time()
     current_clf = clone(clf)
     random_cv = RandomizedSearchCV(current_clf, grid, scoring=scorer, n_jobs=-1, cv=skf, n_iter=2, random_state=seed)
     random_cv.fit(x, y)
     elapsed_time = time.time() - start_time
     print("Current Time =", datetime.now().strftime("%H:%M:%S"))
-    print("estimated time:", flush=True)
-    print(time.strftime("%H:%M:%S", time.gmtime(elapsed_time / 2 * iter)), flush=True)
+    print(f'Estimated time: {time.strftime("%H:%M:%S", time.gmtime(elapsed_time * iter / 2))}', flush=True)
 
     current_clf = clone(clf)
     random_cv = RandomizedSearchCV(current_clf, grid, scoring=scorer, n_jobs=-1, cv=skf, n_iter=iter, random_state=seed)
@@ -558,3 +535,4 @@ def optimize_for_random(name, x, y, clf, skf, grid, scorer, iter, seed):
     print(f'best score: {round(random_cv.best_score_, 4)}')
     print(f'best param: {random_cv.best_params_}')
     print(random_cv.cv_results_)
+
