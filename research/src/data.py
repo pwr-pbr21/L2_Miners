@@ -5,6 +5,7 @@ from sklearn.model_selection import KFold
 from sklearn.multiclass import OneVsRestClassifier
 from sklearn.naive_bayes import MultinomialNB
 from sklearn.ensemble import AdaBoostClassifier # AdaBoost model
+from xgboost import XGBClassifier #XGBoost model
 
 SEED = 42
 FOLDS = 10
@@ -31,8 +32,10 @@ baseline = DummyClassifier("stratified", random_state=SEED)
 ada = AdaBoostClassifier (n_estimators = 500, random_state = SEED)
 nb_baseline = MultinomialNB()
 skf = KFold(n_splits=FOLDS, random_state=SEED, shuffle=True)
+xg = XGBClassifier(n_estimators=500,random_state=SEED)
 rf_clf = OneVsRestClassifier(rf)
 baseline_clf = OneVsRestClassifier(baseline)
 nb_clf = OneVsRestClassifier(nb_baseline)
 ada_clf = OneVsRestClassifier(ada)
 gb_clf = OneVsRestClassifier(GradientBoostingClassifier())
+xg_clf = OneVsRestClassifier(xg)

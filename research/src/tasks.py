@@ -22,14 +22,15 @@ def run_classification(_x, _y):
         results[thread_id] = (name, scores, folds)
         log(f"End of {name}")
 
-    _results = [None] * 5
+    _results = [None] * 6
 
     _threads = [
         Thread(target=classify_in_thread, args=("Random Forest", 0, _results, rf_clf)),
         Thread(target=classify_in_thread, args=("Native Bayes", 1, _results, nb_clf)),
         Thread(target=classify_in_thread, args=("Baseline", 2, _results, baseline_clf)),
         Thread(target=classify_in_thread, args=("GradientBoost", 3, _results, gb_clf)),
-        Thread(target=classify_in_thread, args=("AdaBoost", 4, _results, ada_clf))
+        Thread(target=classify_in_thread, args=("AdaBoost", 4, _results, ada_clf)),
+        Thread(target=classify_in_thread, args=("XGBoost", 5, _results, xg_clf))
     ]
 
     for t in _threads:
