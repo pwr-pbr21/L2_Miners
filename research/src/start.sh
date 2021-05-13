@@ -1,3 +1,3 @@
 #!/bin/sh
 
-python -W ignore start.py $1 > /outputData/task$1.log 2>&1
+python -u -W ignore start.py $1 2>&1 | tee /outputData/task$1.log
