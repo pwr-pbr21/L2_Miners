@@ -15,6 +15,8 @@ STACK_PATH = "../data/step_1_2_StackUsersOut.csv"
 
 PROCESSED_PATH_OUT = "../data/step_3_processed_ground_truth.csv"
 
+
+
 BIO_MIN = 0.01
 BIO_MAX = 0.2
 DESC_MIN = 0.04
@@ -48,6 +50,7 @@ def prepare_author_information(so_data, gh_data) -> pd.DataFrame:
     df["Mobile"] = df["gh_roles"].apply(lambda x: 'Mobile' in x)
     df["DevOps"] = df["gh_roles"].apply(lambda x: 'DevOps' in x)
     df["DataScientist"] = df["gh_roles"].apply(lambda x: 'DataScience' in x)
+    df["FullStack"] = df["gh_roles"].apply(lambda x: 'FullStack' in x)
 
     df = df.drop("gh_roles", axis=1)
     df.gh_bio = df.gh_bio.fillna("")  # fill empty cells with empty string
@@ -60,7 +63,7 @@ def author_information(authors_ds) -> (pd.DataFrame, pd.DataFrame):
     filtered_authors = authors_ds[authors_ds.gh_repos >= REPO_THRESHOLD].fillna("")
     filtered_authors.loc[:, "Backend":].sum()
     filtered_authors.drop(["gh_bio", "gh_repos"], axis=1) \
-        .groupby(["Backend", "Frontend", "Mobile", "DevOps", "DataScientist"]) \
+        .groupby(["Backend", "Frontend", "Mobile", "DevOps", "DataScientist", "FullStack"]) \
         .count() \
         .reset_index()
 
@@ -151,7 +154,7 @@ def prepare_language_information(gh_data) -> pd.DataFrame:
                 user_language[language] = 1
         for column_name, column_value in user_data.items():
             if column_name.endswith("_rate"):
-                user_data[column_name] /= user_language[column_name[:-5]]
+                user_data[column_name] /= user_language[column_name[:-6]]
         data.append(user_data)
     return pd.DataFrame(data).fillna(0.0)
 

@@ -14,7 +14,12 @@ from utils import *
 
 # noinspection DuplicatedCode
 def task1():
-    run_classification(X, Y)
+    #run_classification(X, Y)
+
+    fs_roles = ["Backend", "Frontend"]
+    Y_fs.loc[Y_fs.FullStack == 1, fs_roles] = 1
+
+    run_classification(X_fs, Y_fs)
 
 
 def run_classification(_x, _y):
@@ -42,7 +47,7 @@ def run_classification(_x, _y):
     for r in _results:
         if r is not None:
             print(f"******** {r[0]} ********")
-            classify_report(r[1], Y.columns)
+            classify_report(r[1], Y_fs.columns)
 
 
 # RQ.2: What are the most relevant features to identify technical roles?
@@ -115,7 +120,8 @@ def task3():
         cc_dataset.metric.str.contains("Frontend"),
         cc_dataset.metric.str.contains("Mobile"),
         cc_dataset.metric.str.contains("DevOps"),
-        cc_dataset.metric.str.contains("DataScientist")
+        cc_dataset.metric.str.contains("DataScientist"),
+        cc_dataset.metric.str.contains("FullStack")
     ], axis=0)]
 
     p = (ggplot(cc_general, aes(x="index", y="value"))
@@ -303,13 +309,14 @@ def task5():
                                n_estimators=1000, oob_score=False, warm_start=False)
     ]
 
+
     classifiers = map(lambda c: OneVsRestClassifier(c), classifiers)
 
     for name, clf in zip(names, classifiers):
-        scores, _ = classify(X, Y, skf, clf, average="micro", name=name)
+        scores, _ = classify(X_fs, Y_fs, skf, clf, average="micro", name=name)
 
         print(f"******** {name} ********")
-        classify_report(scores, Y.columns)
+        classify_report(scores, Y_fs.columns)
 
 
 def tuning():
