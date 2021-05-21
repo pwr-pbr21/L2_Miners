@@ -5,7 +5,7 @@ from typing import Dict
 import pandas as pd
 import requests as rq
 
-INPUT_FILENAME = '../data/step_1_2_StackUsersOut.csv'
+INPUT_FILENAME = '../data/step_1_3_StackUsersOutFullStack.csv'
 OUTPUT_FILENAME = '../data/step_2_GithubData.json'
 AUTHORIZATION_KEY_FILE = 'auth.key'
 

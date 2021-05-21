@@ -42,7 +42,7 @@ def run_classification(_x, _y):
     for r in _results:
         if r is not None:
             print(f"******** {r[0]} ********")
-            classify_report(r[1], Y.columns)
+            classify_report(r[1], _y.columns)
 
 
 # RQ.2: What are the most relevant features to identify technical roles?
