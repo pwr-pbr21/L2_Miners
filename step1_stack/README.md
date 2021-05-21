@@ -3,8 +3,11 @@
 # StackOverflow
 Usage:
 ```
-python stack.py <data_in> <data_out>
+python stack.py <mode> <data_in> <data_out>
 ```
+where:
+- mode = 0, without FullStack role
+- mode = 1, with FullStack role
 
 ### Selecting data from StackOverflow
 https://data.stackexchange.com/stackoverflow/
