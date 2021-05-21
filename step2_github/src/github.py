@@ -5,9 +5,9 @@ from typing import Dict
 import pandas as pd
 import requests as rq
 
-INPUT_FILENAME = '../data/step_1_2_StackUsersOut.csv'
-OUTPUT_FILENAME = '../data/step_2_GithubData.json'
-AUTHORIZATION_KEY_FILE = 'auth.key'
+INPUT_FILENAME = '/github/in/input.csv'
+OUTPUT_FILENAME = '/github/out/output.json'
+AUTHORIZATION_KEY_FILE = '/github/auth.key'
 
 USERNAME_COLUMN_NAME = 'GithubUrl'
 OUTPUT_ATTRIBUTE_NAME = {
