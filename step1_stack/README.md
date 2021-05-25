@@ -1,6 +1,6 @@
-# Preparing data 
+# Preparing data - StackOverflow
 
-# StackOverflow
+
 Usage:
 ```
 python stack.py <mode> <data_in> <data_out>

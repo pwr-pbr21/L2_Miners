@@ -1,3 +1,4 @@
+import sys
 from sys import stderr
 
 from sklearn.preprocessing import normalize
@@ -10,11 +11,6 @@ FOLDS = 10
 CORR_THRESHOLD = 0.7
 REPO_THRESHOLD = 5
 
-GITHUB_PATH = "../data/step_2_GithubData.json"
-STACK_PATH = "../data/step_1_2_StackUsersOut.csv"
-
-PROCESSED_PATH_OUT = "../data/step_3_processed_ground_truth.csv"
-
 BIO_MIN = 0.01
 BIO_MAX = 0.2
 DESC_MIN = 0.04
@@ -25,7 +21,7 @@ TOPICS_MIN = 0.01
 TOPICS_MAX = 0.25
 
 
-def prepare_author_information(so_data, gh_data) -> pd.DataFrame:
+def prepare_author_information(so_data, gh_data, is_fs) -> pd.DataFrame:
     # Create dataframe
     data = []
     for gh_login, user_info in gh_data.get("users").items():
@@ -48,19 +44,25 @@ def prepare_author_information(so_data, gh_data) -> pd.DataFrame:
     df["Mobile"] = df["gh_roles"].apply(lambda x: 'Mobile' in x)
     df["DevOps"] = df["gh_roles"].apply(lambda x: 'DevOps' in x)
     df["DataScientist"] = df["gh_roles"].apply(lambda x: 'DataScience' in x)
+    if is_fs:
+        df["FullStack"] = df["gh_roles"].apply(lambda x: 'FullStack' in x)
 
     df = df.drop("gh_roles", axis=1)
     df.gh_bio = df.gh_bio.fillna("")  # fill empty cells with empty string
     return df
 
 
-def author_information(authors_ds) -> (pd.DataFrame, pd.DataFrame):
+def author_information(authors_ds, is_fs) -> (pd.DataFrame, pd.DataFrame):
     authors_ds.gh_bio = authors_ds.gh_bio.apply(strip_html_tags).apply(strip_numbers)
+
+    roles = ["Backend", "Frontend", "Mobile", "DevOps", "DataScientist"]
+    if is_fs:
+        roles.append("FullStack")
 
     filtered_authors = authors_ds[authors_ds.gh_repos >= REPO_THRESHOLD].fillna("")
     filtered_authors.loc[:, "Backend":].sum()
     filtered_authors.drop(["gh_bio", "gh_repos"], axis=1) \
-        .groupby(["Backend", "Frontend", "Mobile", "DevOps", "DataScientist"]) \
+        .groupby(roles) \
         .count() \
         .reset_index()
 
@@ -212,10 +214,23 @@ def dependencies_information(dep_df, bio_df) -> pd.DataFrame:
     deps_popularity = dep_df.groupby('dep_name')['dep_name'].count()
     deps_popularity = deps_popularity.sort_values(ascending=False)
     deps_popularity = deps_popularity.iloc[:1000]
-    dep_df = dep_df[dep_df['dep_name'].isin(deps_popularity.index)]
-    dep_df = pd.get_dummies(dep_df.set_index('gh_login')['dep_name'].astype(str)).max(level=0).sort_index()
 
-    deps_ds = dep_df.join(bio_df.iloc[:, :0], how="right").fillna(0)
+    dep_df = dep_df[dep_df['dep_name'].isin(deps_popularity.index)]
+
+    # TODO: eats too much RAM
+    x = dep_df[dep_df['dep_name'].isin(deps_popularity.iloc[:100].index)]
+    y = dep_df[dep_df['dep_name'].isin(deps_popularity.iloc[100:200].index)]
+    z = dep_df[dep_df['dep_name'].isin(deps_popularity.iloc[200:].index)]
+
+    x = pd.get_dummies(x.set_index('gh_login')['dep_name'].astype(str)).max(level=0).sort_index()
+    y = pd.get_dummies(y.set_index('gh_login')['dep_name'].astype(str)).max(level=0).sort_index()
+    z = pd.get_dummies(z.set_index('gh_login')['dep_name'].astype(str)).max(level=0).sort_index()
+
+    x = x.join(bio_df.iloc[:, :0], how="right").fillna(0)
+    y = y.join(bio_df.iloc[:, :0], how="right").fillna(0)
+    z = z.join(bio_df.iloc[:, :0], how="right").fillna(0)
+
+    deps_ds = pd.concat([x, y, z], axis=1, join="inner")
 
     dropped_dependencies = find_correlation(deps_ds, "spearman", CORR_THRESHOLD)
     deps_ds = deps_ds.drop(dropped_dependencies.keys(), axis=1)
@@ -228,13 +243,13 @@ def dependencies_information(dep_df, bio_df) -> pd.DataFrame:
     return deps_ds
 
 
-def prepare_dataset():
+def prepare_dataset(is_fs, stack_data_in, gh_data_in):
     print("1: Reading stack and github data")
-    so_data, gh_data = read_stack_data(STACK_PATH), read_github_data(GITHUB_PATH)
+    so_data, gh_data = read_stack_data(stack_data_in), read_github_data(gh_data_in)
 
     print("2: Preparing author information")
-    author_df = prepare_author_information(so_data, gh_data)
-    bio_ds, filtered_authors = author_information(author_df)
+    author_df = prepare_author_information(so_data, gh_data, is_fs)
+    bio_ds, filtered_authors = author_information(author_df, is_fs)
 
     print("3: Preparing repos information")
     repo_df = prepare_repos_information(gh_data)
@@ -248,18 +263,26 @@ def prepare_dataset():
     deps_ds = prepare_dependencies_information(gh_data)
     deps_ds = dependencies_information(deps_ds, bio_ds)
 
-    X = bio_ds.join([rdesc_ds, rtopics_ds, rnames_ds, lang_ds, deps_ds])
-    Y = filtered_authors.loc[:, "Backend":]
-    Y.index = X.index
-    Y = Y.astype(int)
-    Z = X.join(Y)
-    return X, Y, Z
+    x = bio_ds.join([rdesc_ds, rtopics_ds, rnames_ds, lang_ds, deps_ds])
+    y = filtered_authors.loc[:, "Backend":]
+    y.index = x.index
+    y = y.astype(int)
+    z = x.join(y)
+    return x, y, z
 
 
-def prepare_and_save_dataset():
-    _, _, Z = prepare_dataset()
-    Z.to_csv(PROCESSED_PATH_OUT, index=False, sep=";")
+def prepare_and_save_dataset(is_fullstack_considered, stack_data_in,
+                             gh_data_in, data_out):
+    _, _, z = prepare_dataset(is_fullstack_considered, stack_data_in, gh_data_in)
+    z.to_csv(data_out, index=False, sep=";")
 
 
 if __name__ == '__main__':
-    prepare_and_save_dataset()
+    assert len(sys.argv) == 5
+    assert sys.argv[1] == "0" or sys.argv[1] == "1"
+    _is_fullstack_considered = False if sys.argv[1] == "0" else True
+    _stack_data_in = sys.argv[2]
+    _gh_data_in = sys.argv[3]
+    _data_out = sys.argv[4]
+    prepare_and_save_dataset(_is_fullstack_considered, _stack_data_in,
+                             _gh_data_in, _data_out)
