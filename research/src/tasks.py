@@ -14,8 +14,14 @@ from utils import *
 
 # noinspection DuplicatedCode
 def task1():
-    run_classification(X, Y)
+    #run_classification(X, Y)
 
+    run_classification(X_fs, Y_fs)
+
+    fs_roles = ["Backend", "Frontend"]
+    Y_fs.loc[Y_fs.FullStack == 1, fs_roles] = 1
+
+    run_classification(X_fs, Y_fs)
 
 def run_classification(_x, _y):
     def classify_in_thread(name, thread_id, results, clf):
@@ -140,10 +146,126 @@ def task3():
 def task4():
     run_classification(X_fs, Y_fs)
 
+    #****** FullStack - bez uwzględnienia Backend i Frontend *****
+    #******** Random Forest ********
+    #Role           Precision Recall    F1        MCC       Support
+    #Backend        0.40      0.02      0.03      0.07       362
+    #Frontend       0.85      0.53      0.65      0.56       743
+    #Mobile         0.83      0.28      0.42      0.44       388
+    #DevOps         0.67      0.06      0.11      0.19       133
+    #DataScientist  0.92      0.60      0.72      0.73       186
+    #FullStack      0.86      0.62      0.72      0.60       972
+    #
+    #Total:         0.86      0.44      0.58      0.43
+    #AUC:           0.73
+    #Jaccard:       0.41
+    #Hamming Loss:  0.13
+
+    #******** Native Bayes ********
+    #Role           Precision Recall    F1        MCC       Support
+    #Backend        0.23      0.23      0.22      0.09       362
+    #Frontend       0.44      0.84      0.58      0.33       743
+    #Mobile         0.28      0.63      0.39      0.24       388
+    #DevOps         0.14      0.54      0.22      0.19       133
+    #DataScientist  0.40      0.85      0.54      0.53       186
+    #FullStack      0.47      0.64      0.55      0.14       972
+    #
+    #Total:         0.37      0.65      0.47      0.25
+    #AUC:           0.52
+    #Jaccard:       0.31
+    #Hamming Loss:  0.29
+
+    #******** Baseline ********
+    #Role           Precision Recall    F1        MCC       Support
+    #Backend        0.17      0.16      0.17      0.02       362
+    #Frontend       0.34      0.32      0.32      0.03       743
+    #Mobile         0.17      0.16      0.16      0.00       388
+    #DevOps         0.05      0.04      0.04     -0.01       133
+    #DataScientist  0.09      0.07      0.08      0.01       186
+    #FullStack      0.46      0.46      0.46      0.08       972
+    #
+    #Total:         0.31      0.30      0.30      0.02
+    #AUC:           0.37
+    #Jaccard:       0.18
+    #Hamming Loss:  0.27
+
+    #******** GradientBoost ********
+    #Role           Precision Recall    F1        MCC       Support
+    #Backend        0.55      0.11      0.18      0.20       362
+    #Frontend       0.80      0.58      0.67      0.57       743
+    #Mobile         0.78      0.39      0.52      0.49       388
+    #DevOps         0.58      0.25      0.34      0.35       133
+    #DataScientist  0.84      0.69      0.76      0.74       186
+    #FullStack      0.87      0.64      0.74      0.61       972
+    #
+    #Total:         0.82      0.51      0.62      0.49
+    #AUC:           0.74
+    #Jaccard:       0.45
+    #Hamming Loss:  0.12
+
+
     fs_roles = ["Backend", "Frontend"]
     Y_fs.loc[Y_fs.FullStack == 1, fs_roles] = 1
 
     run_classification(X_fs, Y_fs)
+
+    #******** Random Forest ********
+    #Role           Precision Recall    F1        MCC       Support
+    #Backend        0.74      0.79      0.76      0.46      1265
+    #Frontend       0.81      0.94      0.87      0.52      1617
+    #Mobile         0.83      0.28      0.42      0.44       388
+    #DevOps         0.67      0.06      0.11      0.19       133
+    #DataScientist  0.92      0.60      0.72      0.73       186
+    #FullStack      0.86      0.62      0.72      0.60       972
+    #
+    #Total:         0.80      0.73      0.77      0.49
+    #AUC:           0.86
+    #Jaccard:       0.62
+    #Hamming Loss:  0.15
+
+    #******** Native Bayes ********
+    #Role           Precision Recall    F1        MCC       Support
+    #Backend        0.62      0.50      0.55      0.14      1265
+    #Frontend       0.82      0.84      0.83      0.42      1617
+    #Mobile         0.28      0.63      0.39      0.24       388
+    #DevOps         0.14      0.54      0.22      0.19       133
+    #DataScientist  0.40      0.85      0.54      0.53       186
+    #FullStack      0.47      0.64      0.55      0.14       972
+    #
+    #Total:         0.53      0.68      0.60      0.28
+    #AUC:           0.64
+    #Jaccard:       0.43
+    #Hamming Loss:  0.30
+
+    #******** Baseline ********
+    #Role           Precision Recall    F1        MCC       Support
+    #Backend        0.50      0.52      0.51     -0.08      1265
+    #Frontend       0.69      0.71      0.70      0.00      1617
+    #Mobile         0.17      0.16      0.16      0.00       388
+    #DevOps         0.05      0.04      0.04     -0.01       133
+    #DataScientist  0.09      0.07      0.08      0.01       186
+    #FullStack      0.46      0.46      0.46      0.08       972
+    #
+    #Total:         0.51      0.51      0.51     -0.00
+    #AUC:           0.59
+    #Jaccard:       0.34
+    #Hamming Loss:  0.32
+
+    #******** GradientBoost ********
+    #Role           Precision Recall    F1        MCC       Support
+    #Backend        0.79      0.71      0.75      0.48      1265
+    #Frontend       0.83      0.91      0.87      0.54      1617
+    #Mobile         0.77      0.39      0.52      0.49       388
+    #DevOps         0.62      0.24      0.32      0.35       133
+    #DataScientist  0.82      0.68      0.74      0.73       186
+    #FullStack      0.87      0.65      0.74      0.62       972
+    #
+    #Total:         0.82      0.73      0.77      0.53
+    #AUC:           0.88
+    #Jaccard:       0.63
+    #Hamming Loss:  0.14
+
+
 
 
 def task5():
