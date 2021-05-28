@@ -14,14 +14,7 @@ from utils import *
 
 # noinspection DuplicatedCode
 def task1():
-    #run_classification(X, Y)
-
-    run_classification(X_fs, Y_fs)
-
-    fs_roles = ["Backend", "Frontend"]
-    Y_fs.loc[Y_fs.FullStack == 1, fs_roles] = 1
-
-    run_classification(X_fs, Y_fs)
+    run_classification(X, Y)
 
 def run_classification(_x, _y):
     def classify_in_thread(name, thread_id, results, clf):
