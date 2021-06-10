@@ -1,6 +1,0 @@
-.idea
-venv
-auth.key
-input.csv
-*.json
-!output.json

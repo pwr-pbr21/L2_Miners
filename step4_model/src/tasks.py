@@ -10,9 +10,6 @@ from utils import *
 
 
 # RQ.1: How accurate are machine learning classifiers in identifying technical roles?
-
-
-# noinspection DuplicatedCode
 def task1():
     run_classification(X, Y)
 
@@ -45,8 +42,6 @@ def run_classification(_x, _y):
 
 
 # RQ.2: What are the most relevant features to identify technical roles?
-
-
 def task2():
     var_imp = feature_importances_rank(X, Y, clone(rf))
 
@@ -64,7 +59,6 @@ def task2():
 
 
 # RQ.3: Do technical roles influence each other during classification?
-
 def task3():
     Y_rq3 = Y.loc[:, :]
     permutations = itertools.permutations(range(0, Y_rq3.shape[1]))
@@ -135,7 +129,6 @@ def task3():
 
 
 # RQ.4 How effectively can we identify full-stack developers?
-
 def task4():
     run_classification(X_fs, Y_fs)
 

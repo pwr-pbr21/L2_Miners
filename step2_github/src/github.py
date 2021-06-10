@@ -1,52 +1,54 @@
 import json
 import os
+import sys
 from typing import Dict
 
 import pandas as pd
 import requests as rq
 
-INPUT_FILENAME = '/github/in/input.csv'
-OUTPUT_FILENAME = '/github/out/output.json'
-AUTHORIZATION_KEY_FILE = '/github/auth.key'
+if __name__ == "__main__":
+    assert len(sys.argv) == 4
+    AUTHORIZATION_KEY_FILE = sys.argv[1]
+    INPUT_FILENAME = sys.argv[2]
+    OUTPUT_FILENAME = sys.argv[3]
 
-USERNAME_COLUMN_NAME = 'GithubUrl'
-OUTPUT_ATTRIBUTE_NAME = {
-    'users': 'users',
-    'not_found': 'not_found_username',
-    'with_errors': 'users_with_errors',
-    'not_enough_repos': 'not_enough_repos',
-    'user_name': 'username',
-    'user_id': 'id',
-    'user_bio': 'bio',
-    'repos': 'repositories',
-    'commits_total': 'commits_total',
-    'commits_authored': 'commits_authored',
-    'repo_name': 'name',
-    'repo_topics': 'topics',
-    'repo_main_language': 'mainLanguage',
-    'repo_description': "description",
-    'repo_deps': "dependencies",
-}
+    USERNAME_COLUMN_NAME = 'GithubUrl'
+    OUTPUT_ATTRIBUTE_NAME = {
+        'users': 'users',
+        'not_found': 'not_found_username',
+        'with_errors': 'users_with_errors',
+        'not_enough_repos': 'not_enough_repos',
+        'user_name': 'username',
+        'user_id': 'id',
+        'user_bio': 'bio',
+        'repos': 'repositories',
+        'commits_total': 'commits_total',
+        'commits_authored': 'commits_authored',
+        'repo_name': 'name',
+        'repo_topics': 'topics',
+        'repo_main_language': 'mainLanguage',
+        'repo_description': "description",
+        'repo_deps': "dependencies",
+    }
 
-with open(AUTHORIZATION_KEY_FILE) as AUTH_FILE:
-    AUTH_TOKEN = AUTH_FILE.read()
+    with open(AUTHORIZATION_KEY_FILE) as AUTH_FILE:
+        AUTH_TOKEN = AUTH_FILE.read()
 
-GITHUB_GRAPHQL_ENDPOINT = 'https://api.github.com/graphql'
-GITHUB_GRAPHQL_HEADERS = {
-    'Accept': 'application/vnd.github.hawkgirl-preview+json',
-    'Authorization': f'token {AUTH_TOKEN}'
-}
+    GITHUB_GRAPHQL_ENDPOINT = 'https://api.github.com/graphql'
+    GITHUB_GRAPHQL_HEADERS = {
+        'Accept': 'application/vnd.github.hawkgirl-preview+json',
+        'Authorization': f'token {AUTH_TOKEN}'
+    }
 
-SAVE_STEP = 4
-REPOS_PER_PAGE = 7
-MAX_REQUEST_ATTEMPTS = 2
+    SAVE_STEP = 4
+    REPOS_PER_PAGE = 7
+    MAX_REQUEST_ATTEMPTS = 2
 
-USER_GRAPHQL_QUERY = 'query ($login: String!) { user(login: $login) { id bio } }'
-REPOSITORY_GRAPHQL_QUERY = 'query ($login: String!, $userId: ID!, $limit: Int!, $repoCursor: String) {user(login: $login) {repositories(first: $limit, after: $repoCursor) {edges {cursor node {name isFork description dependencyGraphManifests(first: 100) {nodes {dependencies(first: 100) {nodes {packageName}}}} languages(first: 1, orderBy: {field: SIZE, direction: DESC}) {nodes {name}} topics: repositoryTopics(first: 100) {nodes {topic {name}}} defaultBranchRef {target {...on Commit {totalCommits: history {totalCount} userCommits: history(author: {id: $userId}) {totalCount}}}}}}}} }'
+    USER_GRAPHQL_QUERY = 'query ($login: String!) { user(login: $login) { id bio } }'
+    REPOSITORY_GRAPHQL_QUERY = 'query ($login: String!, $userId: ID!, $limit: Int!, $repoCursor: String) {user(login: $login) {repositories(first: $limit, after: $repoCursor) {edges {cursor node {name isFork description dependencyGraphManifests(first: 100) {nodes {dependencies(first: 100) {nodes {packageName}}}} languages(first: 1, orderBy: {field: SIZE, direction: DESC}) {nodes {name}} topics: repositoryTopics(first: 100) {nodes {topic {name}}} defaultBranchRef {target {...on Commit {totalCommits: history {totalCount} userCommits: history(author: {id: $userId}) {totalCount}}}}}}}} }'
 
-USER_NOT_FOUND_TYPE = 'NOT_FOUND'
-
-REQUEST_COUNTER = 0
+    USER_NOT_FOUND_TYPE = 'NOT_FOUND'
+    REQUEST_COUNTER = 0
 
 
 def safeget(dct, *keys):
@@ -261,3 +263,5 @@ print(f'Users with errors: {len(with_errors)}')
 print(f'Not existing usernames in GitHub: {len(not_found)}')
 print(f'GitHub users without enough repos: {len(repos)}')
 print(f'Number of valid users in result file: {len(users.keys())}')
+
+

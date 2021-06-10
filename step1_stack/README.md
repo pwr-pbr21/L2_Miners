@@ -1,15 +1,19 @@
 # Preparing data - StackOverflow
 
-
-Usage:
-```
+## How to use?
+```shell
 python stack.py <mode> <data_in> <data_out>
 ```
 where:
 - mode = 0, without FullStack role
 - mode = 1, with FullStack role
 
-### Selecting data from StackOverflow
+#### Example:
+```shell
+python stack.py 1 ../../data/step_1_1_stack_users_in.csv ../../data/step_1_3_stack_users_out_fs.csv
+```
+
+## Selecting data from StackOverflow
 https://data.stackexchange.com/stackoverflow/
 ```
 select *
@@ -18,7 +22,7 @@ where WebsiteUrl like '%github%'
 ```
 The query returned 30990 rows.
 
-### Processing data for collecting GitHub usernames
+## Processing data for collecting GitHub usernames
 - Removing rows with empty AboutMe section  
     18514 rows remained.
 - Applying regexes to retrieve GitHub usernames.
@@ -30,7 +34,7 @@ The query returned 30990 rows.
     ```
     17970 rows remained.
 
-### Processing data for determining technical roles
+## Processing data for determining technical roles
 - Extracting list of roles from AboutMe section via regular expressions
     ```
     {
@@ -52,6 +56,10 @@ The query returned 30990 rows.
     {
         'name': 'Mobile',
         'pattern': '.*mobile.*'
+    },
+    {
+        'name': 'FullStack',
+        'pattern': '.*full.{0,1}stack.*'
     }
     ```
 - Removing rows with no roles  

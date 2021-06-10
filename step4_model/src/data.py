@@ -8,13 +8,11 @@ from sklearn.naive_bayes import MultinomialNB
 SEED = 42
 FOLDS = 10
 
-BOW_TUNING = "/inputData/BoW-tuning.csv"
-PROCESED = "/data/step_3_processed_ground_truth.csv"
-PROCESED_FS = "/data/step_3_processed_ground_truth_fs.csv"
+PROCESED = "../../data/step_3_processed_ground_truth.csv"
+PROCESED_FS = "../../data/step_3_processed_ground_truth_fs.csv"
+PLOTS_OUT = "../../data/plots/"
 
 VERBOSE = True
-
-PLOTS_OUT = "/outputData/plots/"
 
 data = pd.read_csv(PROCESED, delimiter=";")
 data_fs = pd.read_csv(PROCESED_FS, delimiter=";")
