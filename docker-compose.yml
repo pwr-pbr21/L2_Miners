@@ -1,0 +1,19 @@
+version: "3"
+
+services:
+    step1_stack:
+        build: ./step1_stack/src
+        working_dir: /stack
+        volumes:
+            - ./step1_stack/src:/stack
+            - ./data:/data
+        command: python /stack/stack.py 0 /data/step_1_1_StackUsersIn.csv /data/step_1_2_StackUsersOut.csv
+#        command: python /stack/stack.py 1 /data/step_1_1_StackUsersIn.csv /data/step_1_3_StackUsersOutFullStack.csv
+    step2_github:
+        build: ./step2_github/src
+        working_dir: /github
+        volumes:
+            - ./step2_github/src:/github
+            - ./data/step_1_3_StackUsersOutFullStack.csv:/github/in/input.csv
+            - ./step2_github/out:/github/out
+        command:  /bin/sh -c "chmod +x ./start.sh && ./start.sh"

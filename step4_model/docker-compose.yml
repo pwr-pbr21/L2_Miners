@@ -1,0 +1,18 @@
+version: "3"
+
+services:
+    python:
+        build: ./src
+        working_dir: /root/technical-roles-script
+        volumes:
+            - ./src:/root/technical-roles-script
+            - ../data:/data
+            - ./inputData:/inputData
+            - ./outputData:/outputData
+            
+        ports:
+            - "8888:8888"
+        #command:  /bin/sh -c "./simultaneously.sh"
+        command:  /bin/sh -c "chmod +x ./start.sh && ./start.sh 1"
+        #command: python -W ignore start.py 3
+        #command: /bin/sh -c "while sleep 1000; do :; done"
